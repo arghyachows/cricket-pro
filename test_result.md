@@ -248,12 +248,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Authentication API endpoints"
-    - "Player management API endpoints"
-    - "Match simulation engine"
-    - "League table calculations"
-    - "Match CRUD operations"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
