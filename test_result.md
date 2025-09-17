@@ -156,11 +156,14 @@ backend:
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented GET /api/leagues with points system (4 for win, 2 for tie), net run rate calculations, team standings"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: League system working correctly. GET /api/leagues?type=SOD returns proper league table structure with all required fields (id, name, played, won, lost, tied, points, runRate). Handles empty league tables gracefully. Points system and net run rate calculations implemented correctly."
 
   - task: "Match CRUD operations"
     implemented: true
