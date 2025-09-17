@@ -217,8 +217,11 @@ export default function App() {
     }
 
     try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : '';
       // For demo, create a match against a random opponent
-      const response = await fetch('/api/matches', {
+      const response = await fetch(`${baseUrl}/api/matches`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
