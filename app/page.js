@@ -165,7 +165,10 @@ export default function App() {
   const simulateMatch = async (matchId) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/matches/${matchId}/simulate`, {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : '';
+      const response = await fetch(`${baseUrl}/api/matches/${matchId}/simulate`, {
         method: 'GET',
       });
 
