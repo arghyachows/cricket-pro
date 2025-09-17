@@ -12,7 +12,7 @@ import uuid
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://cricket-pavilion.preview.emergentagent.com/api"
+BASE_URL = "http://localhost:3000/api"
 TEST_USER_EMAIL = "test.manager@cricketclub.com"
 TEST_USER_PASSWORD = "testpass123"
 TEST_USERNAME = "testmanager"
