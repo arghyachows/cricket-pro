@@ -62,18 +62,22 @@ export default function App() {
     if (!user) return;
     
     try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : '';
+      
       // Fetch players
-      const playersResponse = await fetch(`/api/players?userId=${user.id}`);
+      const playersResponse = await fetch(`${baseUrl}/api/players?userId=${user.id}`);
       const playersData = await playersResponse.json();
       setPlayers(playersData);
 
       // Fetch matches
-      const matchesResponse = await fetch(`/api/matches?userId=${user.id}`);
+      const matchesResponse = await fetch(`${baseUrl}/api/matches?userId=${user.id}`);
       const matchesData = await matchesResponse.json();
       setMatches(matchesData);
 
       // Fetch league table
-      const leagueResponse = await fetch('/api/leagues?type=SOD');
+      const leagueResponse = await fetch(`${baseUrl}/api/leagues?type=SOD`);
       const leagueData = await leagueResponse.json();
       setLeagueTable(leagueData);
 
