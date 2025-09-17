@@ -111,11 +111,14 @@ backend:
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented POST /api/auth/login and /api/auth/register endpoints with user creation and starting squad generation"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Both registration and login endpoints working perfectly. Registration creates user with UUID and generates 25 players (15 senior + 10 youth). Login validates credentials and returns user data. All required fields present in responses."
 
   - task: "Player management API endpoints"
     implemented: true
