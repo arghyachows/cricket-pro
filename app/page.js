@@ -92,7 +92,10 @@ export default function App() {
     setLoading(true);
 
     try {
-      const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : '';
+      const endpoint = authMode === 'login' ? `${baseUrl}/api/auth/login` : `${baseUrl}/api/auth/register`;
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
