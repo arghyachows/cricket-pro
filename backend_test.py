@@ -24,16 +24,12 @@ TEST_USER_DATA = {
     "nationality": "Indian"
 }
 
-class CricketAPITester:
+class T20BackendTester:
     def __init__(self):
         self.base_url = BASE_URL
         self.user_id = None
-        self.test_results = {
-            "authentication": {"passed": 0, "failed": 0, "details": []},
-            "player_management": {"passed": 0, "failed": 0, "details": []},
-            "match_system": {"passed": 0, "failed": 0, "details": []},
-            "league_system": {"passed": 0, "failed": 0, "details": []},
-        }
+        self.match_id = None
+        self.test_results = []
         
     def log_result(self, category: str, test_name: str, success: bool, details: str):
         """Log test result"""
