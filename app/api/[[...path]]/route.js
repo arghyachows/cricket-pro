@@ -257,9 +257,9 @@ export async function GET(request, { params }) {
           }
         }
 
-        // Simulate innings
-        const firstInnings = simulateInnings(homeTeam, awayTeam, 50, match.match_type);
-        const secondInnings = simulateInnings(awayTeam, homeTeam, 50, match.match_type);
+        // Simulate T20 innings (20 overs each)
+        const firstInnings = simulateInnings(homeTeam, awayTeam, 20, 'T20');
+        const secondInnings = simulateInnings(awayTeam, homeTeam, 20, 'T20');
 
         const result = {
           homeScore: `${firstInnings.runs}/${firstInnings.wickets}`,
