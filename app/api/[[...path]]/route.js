@@ -82,10 +82,10 @@ function generatePlayer(age = null) {
   };
 }
 
-// Match simulation functions
-function simulateInnings(battingTeam, bowlingTeam, overs = 20, matchType = 'T20') {
-  const maxOvers = 20; // T20 format only
-  const targetOvers = Math.min(overs, maxOvers);
+// Enhanced T20 Match simulation functions
+function simulateInnings(battingTeam, bowlingTeam, target = null, matchConditions = {}, isSecondInnings = false) {
+  const maxOvers = 20;
+  const { weather = 'Sunny', pitchType = 'Normal' } = matchConditions;
   
   let runs = 0;
   let wickets = 0;
@@ -94,65 +94,247 @@ function simulateInnings(battingTeam, bowlingTeam, overs = 20, matchType = 'T20'
   let currentBatsman1 = 0;
   let currentBatsman2 = 1;
   let currentBowler = 0;
-  let batsmanScores = battingTeam.map(() => ({ runs: 0, balls: 0, fours: 0, sixes: 0, out: false }));
+  let bowlerOvers = {}; // Track overs bowled by each bowler
+  let partnerships = [];
+  let currentPartnership = { batsman1: battingTeam[0].name, batsman2: battingTeam[1].name, runs: 0, balls: 0 };
+  let fallOfWickets = [];
+  let bowlingFigures = {};
+  let lastBowler = -1;
   
-  for (let over = 0; over < targetOvers && wickets < 10; over++) {
+  // Initialize batting scores
+  let batsmanScores = battingTeam.map(() => ({ 
+    runs: 0, balls: 0, fours: 0, sixes: 0, out: false, outType: null, bowler: null, strikeRate: 0 
+  }));
+  
+  // Weather and pitch effects
+  const getWeatherEffect = () => {
+    switch(weather) {
+      case 'Overcast': return { bowlingBonus: 5, battingPenalty: 3 };
+      case 'Rainy': return { bowlingBonus: 8, battingPenalty: 5 };
+      case 'Sunny': return { bowlingBonus: 0, battingPenalty: 0 };
+      default: return { bowlingBonus: 0, battingPenalty: 0 };
+    }
+  };
+  
+  const getPitchEffect = () => {
+    switch(pitchType) {
+      case 'Green': return { bowlingBonus: 6, battingPenalty: 4 };
+      case 'Dusty': return { bowlingBonus: 3, battingPenalty: 2, spinBonus: 5 };
+      case 'Flat': return { bowlingBonus: -3, battingPenalty: -3 };
+      default: return { bowlingBonus: 0, battingPenalty: 0 };
+    }
+  };
+  
+  const weatherEffect = getWeatherEffect();
+  const pitchEffect = getPitchEffect();
+  
+  for (let over = 0; over < maxOvers && wickets < 10; over++) {
+    const isPowerplay = over < 6;
+    const isDeathOvers = over >= 17;
+    
+    // Bowling restrictions - can't bowl more than 4 overs
+    let availableBowlers = bowlingTeam.filter((_, index) => (bowlerOvers[index] || 0) < 4);
+    if (availableBowlers.length === 0) availableBowlers = bowlingTeam; // Fallback
+    
+    // Select bowler (can't bowl consecutive overs)
+    let bowlerIndex;
+    do {
+      bowlerIndex = Math.floor(Math.random() * availableBowlers.length);
+      bowlerIndex = bowlingTeam.findIndex(b => b.id === availableBowlers[bowlerIndex].id);
+    } while (bowlerIndex === lastBowler && availableBowlers.length > 1);
+    
+    const bowler = bowlingTeam[bowlerIndex];
+    bowlerOvers[bowlerIndex] = (bowlerOvers[bowlerIndex] || 0) + 1;
+    lastBowler = bowlerIndex;
+    
+    // Initialize bowling figures
+    if (!bowlingFigures[bowler.id]) {
+      bowlingFigures[bowler.id] = { 
+        name: bowler.name, overs: 0, maidens: 0, runs: 0, wickets: 0, economy: 0 
+      };
+    }
+    
+    let overRuns = 0;
+    let overWickets = 0;
+    
     for (let ball = 0; ball < 6 && wickets < 10; ball++) {
       ballCount++;
+      currentPartnership.balls++;
       
       // Get current players
       const batsman = battingTeam[currentBatsman1];
-      const bowler = bowlingTeam[currentBowler % 5]; // Rotate through 5 bowlers
+      const nonStriker = battingTeam[currentBatsman2];
       
-      // Calculate outcome based on player skills
-      const batsmanSkill = (batsman.batting + batsman.technique + batsman.power) / 3;
-      const bowlerSkill = (bowler.bowling + bowler.technique) / 2;
+      // Calculate skills with form and fatigue effects
+      const formMultiplier = batsman.form === 'Excellent' ? 1.15 : 
+                           batsman.form === 'Good' ? 1.05 : 
+                           batsman.form === 'Poor' ? 0.9 : 
+                           batsman.form === 'Terrible' ? 0.8 : 1.0;
+      
+      const fatigueMultiplier = batsman.fatigue === 'Fresh' ? 1.0 : 
+                               batsman.fatigue === 'Slightly tired' ? 0.95 : 
+                               batsman.fatigue === 'Tired' ? 0.9 : 0.85;
+      
+      let batsmanSkill = (batsman.batting + batsman.technique + batsman.power) / 3;
+      batsmanSkill = batsmanSkill * formMultiplier * fatigueMultiplier;
+      
+      let bowlerSkill = (bowler.bowling + bowler.technique) / 2;
+      
+      // Apply conditions
+      bowlerSkill += weatherEffect.bowlingBonus + pitchEffect.bowlingBonus;
+      batsmanSkill -= weatherEffect.battingPenalty + pitchEffect.battingPenalty;
+      
+      // Spin bowling bonus on dusty pitch
+      if (pitchEffect.spinBonus && (bowler.bowler_type?.includes('spin') || bowler.bowler_type?.includes('Spin'))) {
+        bowlerSkill += pitchEffect.spinBonus;
+      }
+      
+      // Pressure factor for second innings
+      let pressureFactor = 1.0;
+      if (isSecondInnings && target) {
+        const requiredRate = ((target - runs) / ((maxOvers * 6 - ballCount) / 6));
+        const currentRate = runs > 0 ? (runs / (ballCount / 6)) : 0;
+        
+        if (requiredRate > currentRate + 2) {
+          pressureFactor = 1.2; // High pressure increases chances of risky shots
+        } else if (requiredRate < currentRate - 1) {
+          pressureFactor = 0.8; // Low pressure, play safely
+        }
+      }
+      
+      // Match situation adjustments
+      if (isPowerplay) {
+        batsmanSkill += 5; // Field restrictions favor batsmen
+      }
+      if (isDeathOvers) {
+        batsmanSkill += 3; // Batsmen more aggressive
+        bowlerSkill += 2; // Bowlers under pressure
+      }
       
       const outcomeRoll = Math.random() * 100;
       let ballRuns = 0;
       let isWicket = false;
       let ballCommentary = '';
+      let extras = null;
+      let milestone = null;
       
-      // Determine ball outcome
-      if (outcomeRoll < (bowlerSkill - batsmanSkill) / 10 + 5) {
-        // Wicket
-        isWicket = true;
-        batsmanScores[currentBatsman1].out = true;
-        wickets++;
-        ballCommentary = `OUT! ${batsman.name} is dismissed by ${bowler.name}`;
-        
-        // Next batsman comes in
-        currentBatsman1 = wickets + 1;
-        if (currentBatsman1 >= battingTeam.length) currentBatsman1 = currentBatsman2;
+      // Check for extras first (5% chance)
+      if (Math.random() < 0.05) {
+        const extraType = Math.random();
+        if (extraType < 0.6) {
+          ballRuns = 1;
+          extras = 'wide';
+          ballCommentary = `Wide ball! ${bowler.name} strays down the leg side`;
+          ball--; // Wide ball doesn't count as a legal delivery
+        } else if (extraType < 0.9) {
+          ballRuns = 1;
+          extras = 'no-ball';
+          ballCommentary = `No ball! ${bowler.name} oversteps the crease`;
+          ball--; // No ball doesn't count as a legal delivery
+        } else {
+          ballRuns = 1;
+          extras = 'bye';
+          ballCommentary = `Bye! The ball beats everyone`;
+        }
       } else {
-        // Runs scored
-        const runChance = Math.random() * 100;
-        if (runChance < batsmanSkill / 10) {
-          if (runChance < batsmanSkill / 50) {
-            ballRuns = 6;
-            batsmanScores[currentBatsman1].sixes++;
-            ballCommentary = `SIX! ${batsman.name} smashes it out of the park!`;
-          } else if (runChance < batsmanSkill / 25) {
-            ballRuns = 4;
-            batsmanScores[currentBatsman1].fours++;
-            ballCommentary = `FOUR! Beautiful shot from ${batsman.name}`;
-          } else {
-            ballRuns = Math.floor(Math.random() * 3) + 1;
-            ballCommentary = `${batsman.name} scores ${ballRuns} run${ballRuns > 1 ? 's' : ''}`;
+        // Determine ball outcome
+        const wicketChance = (bowlerSkill - batsmanSkill) / 10 + (isDeathOvers ? 8 : 5);
+        
+        if (outcomeRoll < wicketChance && wicketChance > 0) {
+          // Wicket
+          isWicket = true;
+          overWickets++;
+          const wicketTypes = ['bowled', 'caught', 'lbw', 'caught behind', 'run out'];
+          const wicketType = wicketTypes[Math.floor(Math.random() * wicketTypes.length)];
+          
+          batsmanScores[currentBatsman1].out = true;
+          batsmanScores[currentBatsman1].outType = wicketType;
+          batsmanScores[currentBatsman1].bowler = bowler.name;
+          
+          fallOfWickets.push({
+            wicket: wickets + 1,
+            batsman: batsman.name,
+            runs: runs,
+            over: over + 1,
+            ball: ball + 1,
+            bowler: bowler.name,
+            type: wicketType
+          });
+          
+          // End current partnership
+          partnerships.push({...currentPartnership});
+          
+          wickets++;
+          ballCommentary = generateWicketCommentary(batsman, bowler, wicketType, runs, wickets);
+          
+          // Next batsman comes in
+          if (wickets < 10 && currentBatsman1 + wickets + 1 < battingTeam.length) {
+            currentBatsman1 = wickets + 1;
+            currentPartnership = {
+              batsman1: battingTeam[currentBatsman1].name,
+              batsman2: battingTeam[currentBatsman2].name,
+              runs: 0,
+              balls: 0
+            };
           }
         } else {
-          ballRuns = 0;
-          ballCommentary = `Dot ball. Good bowling from ${bowler.name}`;
+          // Runs scored
+          const aggressionLevel = pressureFactor * (isPowerplay ? 1.2 : isDeathOvers ? 1.5 : 1.0);
+          const runChance = Math.random() * 100;
+          
+          if (runChance < (batsmanSkill / 10) * aggressionLevel) {
+            if (runChance < (batsmanSkill / 50) * aggressionLevel) {
+              ballRuns = 6;
+              batsmanScores[currentBatsman1].sixes++;
+              ballCommentary = generateBoundaryCommentary(batsman, bowler, 6, runs + 6, isPowerplay, isDeathOvers);
+            } else if (runChance < (batsmanSkill / 25) * aggressionLevel) {
+              ballRuns = 4;
+              batsmanScores[currentBatsman1].fours++;
+              ballCommentary = generateBoundaryCommentary(batsman, bowler, 4, runs + 4, isPowerplay, isDeathOvers);
+            } else {
+              ballRuns = Math.floor(Math.random() * 3) + 1;
+              ballCommentary = `${batsman.name} works it for ${ballRuns} run${ballRuns > 1 ? 's' : ''}`;
+            }
+          } else {
+            ballRuns = 0;
+            ballCommentary = generateDotBallCommentary(batsman, bowler, isPowerplay, isDeathOvers);
+          }
+          
+          if (!extras) {
+            batsmanScores[currentBatsman1].runs += ballRuns;
+            batsmanScores[currentBatsman1].balls++;
+            
+            // Check for milestones
+            if (batsmanScores[currentBatsman1].runs === 50) {
+              milestone = 'fifty';
+              ballCommentary += ` FIFTY for ${batsman.name}! What a knock!`;
+            } else if (batsmanScores[currentBatsman1].runs === 100) {
+              milestone = 'century';
+              ballCommentary += ` CENTURY! ${batsman.name} reaches three figures!`;
+            }
+          }
+          
+          runs += ballRuns;
+          overRuns += ballRuns;
+          currentPartnership.runs += ballRuns;
+          
+          // Change strike on odd runs
+          if (ballRuns % 2 === 1) {
+            [currentBatsman1, currentBatsman2] = [currentBatsman2, currentBatsman1];
+          }
         }
-        
-        batsmanScores[currentBatsman1].runs += ballRuns;
-        batsmanScores[currentBatsman1].balls++;
-        runs += ballRuns;
-        
-        // Change strike on odd runs
-        if (ballRuns % 2 === 1) {
-          [currentBatsman1, currentBatsman2] = [currentBatsman2, currentBatsman1];
-        }
+      }
+      
+      // Update bowling figures
+      bowlingFigures[bowler.id].runs += ballRuns;
+      if (isWicket) bowlingFigures[bowler.id].wickets++;
+      
+      // Calculate rates
+      const currentRunRate = ballCount > 0 ? (runs / (ballCount / 6)).toFixed(2) : '0.00';
+      let requiredRunRate = null;
+      if (isSecondInnings && target) {
+        const ballsLeft = (maxOvers * 6) - ballCount;
+        requiredRunRate = ballsLeft > 0 ? ((target - runs) / (ballsLeft / 6)).toFixed(2) : '0.00';
       }
       
       commentary.push({
@@ -164,23 +346,158 @@ function simulateInnings(battingTeam, bowlingTeam, overs = 20, matchType = 'T20'
         batsman: batsman.name,
         bowler: bowler.name,
         commentary: ballCommentary,
-        isWicket: isWicket
+        isWicket: isWicket,
+        extras: extras,
+        milestone: milestone,
+        currentRunRate: parseFloat(currentRunRate),
+        requiredRunRate: requiredRunRate ? parseFloat(requiredRunRate) : null,
+        isPowerplay: isPowerplay,
+        isDeathOvers: isDeathOvers,
+        pressure: isSecondInnings && target ? (target - runs) : null,
+        ballsLeft: isSecondInnings && target ? (maxOvers * 6) - ballCount : null
       });
+      
+      // Check if target achieved in second innings
+      if (isSecondInnings && runs > target) {
+        break;
+      }
+    }
+    
+    // Update bowling figures for the over
+    bowlingFigures[bowler.id].overs++;
+    if (overRuns === 0 && overWickets === 0) {
+      bowlingFigures[bowler.id].maidens++;
     }
     
     // Change strike at end of over
     [currentBatsman1, currentBatsman2] = [currentBatsman2, currentBatsman1];
-    // Change bowler (rotate through bowling attack)
-    currentBowler = (currentBowler + 1) % 5;
+    
+    // Check if target achieved in second innings
+    if (isSecondInnings && runs > target) {
+      break;
+    }
   }
+  
+  // Finalize current partnership
+  if (currentPartnership.balls > 0) {
+    partnerships.push(currentPartnership);
+  }
+  
+  // Calculate final bowling figures
+  Object.keys(bowlingFigures).forEach(bowlerId => {
+    const figure = bowlingFigures[bowlerId];
+    figure.economy = figure.overs > 0 ? (figure.runs / figure.overs).toFixed(2) : '0.00';
+  });
+  
+  // Calculate batting strike rates
+  batsmanScores.forEach((score, index) => {
+    score.strikeRate = score.balls > 0 ? ((score.runs / score.balls) * 100).toFixed(2) : '0.00';
+    score.name = battingTeam[index].name;
+  });
   
   return {
     runs,
     wickets,
     overs: Math.floor(ballCount / 6) + (ballCount % 6 > 0 ? (ballCount % 6) / 10 : 0),
+    balls: ballCount,
     commentary,
-    batsmanScores
+    batsmanScores,
+    bowlingFigures: Object.values(bowlingFigures),
+    partnerships,
+    fallOfWickets,
+    runRate: ballCount > 0 ? (runs / (ballCount / 6)).toFixed(2) : '0.00'
   };
+}
+
+// Enhanced commentary generation functions
+function generateWicketCommentary(batsman, bowler, wicketType, runs, wicketNumber) {
+  const wicketComments = {
+    bowled: [
+      `BOWLED! ${bowler.name} crashes through the defenses of ${batsman.name}!`,
+      `Timber! ${batsman.name} is clean bowled by a beauty from ${bowler.name}!`,
+      `What a delivery! ${bowler.name} rattles the stumps and ${batsman.name} has to go!`
+    ],
+    caught: [
+      `CAUGHT! ${batsman.name} finds the fielder and ${bowler.name} gets his reward!`,
+      `Gone! ${batsman.name} tries to go big but holes out to the fielder!`,
+      `Excellent catch! ${batsman.name} is dismissed and ${bowler.name} is delighted!`
+    ],
+    lbw: [
+      `LBW! ${batsman.name} is trapped in front by ${bowler.name}!`,
+      `Plumb! ${batsman.name} is caught dead in front of the stumps!`,
+      `That looked stone dead! ${batsman.name} has to walk back!`
+    ],
+    'caught behind': [
+      `CAUGHT BEHIND! ${batsman.name} edges it to the keeper!`,
+      `Gone! The keeper takes a sharp catch behind the stumps!`,
+      `Thin edge! ${batsman.name} nicks it and the keeper does the rest!`
+    ],
+    'run out': [
+      `RUN OUT! Poor communication and ${batsman.name} has to go!`,
+      `Direct hit! ${batsman.name} is short of the crease!`,
+      `Brilliant fielding! ${batsman.name} is caught well short!`
+    ]
+  };
+  
+  const comments = wicketComments[wicketType] || [`OUT! ${batsman.name} is dismissed by ${bowler.name}`];
+  let comment = comments[Math.floor(Math.random() * comments.length)];
+  
+  if (wicketNumber <= 3) {
+    comment += ` Early breakthrough for the bowling side!`;
+  } else if (wicketNumber >= 8) {
+    comment += ` The tail is crumbling now!`;
+  }
+  
+  return comment;
+}
+
+function generateBoundaryCommentary(batsman, bowler, runs, totalRuns, isPowerplay, isDeathOvers) {
+  const sixComments = [
+    `SIX! ${batsman.name} sends it sailing over the ropes!`,
+    `Maximum! What a strike from ${batsman.name}!`,
+    `Gone all the way! ${batsman.name} absolutely crunches that one!`,
+    `Into the crowd! ${batsman.name} connects beautifully!`,
+    `Massive hit! ${batsman.name} clears the boundary with ease!`
+  ];
+  
+  const fourComments = [
+    `FOUR! ${batsman.name} finds the gap beautifully!`,
+    `Cracking shot! ${batsman.name} pierces the field!`,
+    `Exquisite timing! ${batsman.name} guides it to the fence!`,
+    `Brilliant stroke! ${batsman.name} finds the boundary!`,
+    `Perfect placement! ${batsman.name} beats the field!`
+  ];
+  
+  let comments = runs === 6 ? sixComments : fourComments;
+  let comment = comments[Math.floor(Math.random() * comments.length)];
+  
+  if (isPowerplay) {
+    comment += ` Making the most of the powerplay restrictions!`;
+  } else if (isDeathOvers) {
+    comment += ` Crucial runs in the death overs!`;
+  }
+  
+  return comment;
+}
+
+function generateDotBallCommentary(batsman, bowler, isPowerplay, isDeathOvers) {
+  const dotComments = [
+    `Dot ball. ${bowler.name} keeps it tight.`,
+    `Good length from ${bowler.name}, ${batsman.name} defends.`,
+    `${batsman.name} can't get it away, excellent bowling.`,
+    `${bowler.name} hits the right length, no runs.`,
+    `Solid defense from ${batsman.name}.`
+  ];
+  
+  let comment = dotComments[Math.floor(Math.random() * dotComments.length)];
+  
+  if (isDeathOvers) {
+    comment += ` Pressure building in the death overs!`;
+  } else if (isPowerplay) {
+    comment += ` Good tight bowling despite the field restrictions.`;
+  }
+  
+  return comment;
 }
 
 export async function GET(request, { params }) {
