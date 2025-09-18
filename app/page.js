@@ -162,48 +162,9 @@ export default function App() {
     return 'text-red-800';
   };
 
-  const simulateMatch = async (matchId) => {
-    setLoading(true);
-    try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000' 
-        : '';
-      const response = await fetch(`${baseUrl}/api/matches/${matchId}/simulate`, {
-        method: 'GET',
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setMatchCommentary(result.commentary);
-        setSelectedMatch({
-          ...matches.find(m => m.id === matchId),
-          ...result
-        });
-        
-        // Refresh matches and league table
-        await fetchUserData();
-        
-        toast({
-          title: "Match Completed!",
-          description: `Final Score: ${result.homeScore} vs ${result.awayScore}`,
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: result.error,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to simulate match",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+  const simulateMatch = (matchId) => {
+    // Navigate to the live match simulation page
+    window.location.href = `/match/${matchId}`;
   };
 
   const createFriendlyMatch = async () => {
