@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import { 
@@ -28,7 +29,11 @@ import {
   Heart,
   Crown,
   DollarSign,
-  Globe
+  Globe,
+  ShoppingCart,
+  PlusCircle,
+  Edit,
+  Coins
 } from 'lucide-react';
 
 export default function App() {
@@ -37,10 +42,29 @@ export default function App() {
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
   const [leagueTable, setLeagueTable] = useState([]);
+  const [lineups, setLineups] = useState([]);
+  const [marketplace, setMarketplace] = useState([]);
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [currentTab, setCurrentTab] = useState('dashboard');
   const { toast } = useToast();
+
+  // Lineup creation state
+  const [isCreatingLineup, setIsCreatingLineup] = useState(false);
+  const [newLineup, setNewLineup] = useState({
+    name: '',
+    players: [],
+    captain_id: '',
+    wicketkeeper_id: '',
+    first_bowler_id: '',
+    second_bowler_id: '',
+    is_main: false
+  });
+
+  // Marketplace state
+  const [showSellDialog, setShowSellDialog] = useState(false);
+  const [playerToSell, setPlayerToSell] = useState(null);
+  const [salePrice, setSalePrice] = useState('');
 
   // Auth state
   const [authForm, setAuthForm] = useState({
@@ -77,9 +101,19 @@ export default function App() {
       setMatches(matchesData);
 
       // Fetch league table
-      const leagueResponse = await fetch(`${baseUrl}/api/leagues?type=SOD`);
+      const leagueResponse = await fetch(`${baseUrl}/api/leagues`);
       const leagueData = await leagueResponse.json();
       setLeagueTable(leagueData);
+
+      // Fetch lineups
+      const lineupsResponse = await fetch(`${baseUrl}/api/lineups?userId=${user.id}`);
+      const lineupsData = await lineupsResponse.json();
+      setLineups(lineupsData);
+
+      // Fetch marketplace
+      const marketResponse = await fetch(`${baseUrl}/api/marketplace`);
+      const marketData = await marketResponse.json();
+      setMarketplace(marketData);
 
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -134,6 +168,211 @@ export default function App() {
     }
   };
 
+  const simulateMatch = (matchId) => {
+    router.push(`/match/${matchId}`);
+  };
+
+  const createFriendlyMatch = async () => {
+    if (!user || players.length < 11) {
+      toast({
+        title: "Error",
+        description: "You need at least 11 players to create a match",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : '';
+      const response = await fetch(`${baseUrl}/api/matches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          home_team_id: user.id,
+          away_team_id: 'demo-opponent',
+          scheduled_time: new Date().toISOString(),
+          pitch_type: 'Normal',
+          weather: 'Sunny'
+        }),
+      });
+
+      const match = await response.json();
+
+      if (response.ok) {
+        setMatches([...matches, match]);
+        toast({
+          title: "Match Created!",
+          description: "Your T20 match has been scheduled",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: match.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create match",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const createLineup = async () => {
+    if (newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id || 
+        !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name) {
+      toast({
+        title: "Error",
+        description: "Please fill all required fields: 11 players, captain, wicketkeeper, and 2 bowlers",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : '';
+      const response = await fetch(`${baseUrl}/api/lineups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...newLineup,
+          user_id: user.id
+        }),
+      });
+
+      const lineup = await response.json();
+
+      if (response.ok) {
+        setLineups([...lineups, lineup]);
+        setIsCreatingLineup(false);
+        setNewLineup({
+          name: '',
+          players: [],
+          captain_id: '',
+          wicketkeeper_id: '',
+          first_bowler_id: '',
+          second_bowler_id: '',
+          is_main: false
+        });
+        toast({
+          title: "Success!",
+          description: "Lineup created successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: lineup.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create lineup",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const sellPlayer = async () => {
+    if (!playerToSell || !salePrice) return;
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : '';
+      const response = await fetch(`${baseUrl}/api/marketplace/list`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          player_id: playerToSell.id,
+          sale_price: parseInt(salePrice)
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success!",
+          description: "Player listed for sale",
+        });
+        setShowSellDialog(false);
+        setSalePrice('');
+        setPlayerToSell(null);
+        fetchUserData(); // Refresh data
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to list player",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to list player",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const buyPlayer = async (player) => {
+    if (!user || user.coins < player.sale_price) {
+      toast({
+        title: "Error",
+        description: "Insufficient coins",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : '';
+      const response = await fetch(`${baseUrl}/api/marketplace/buy/${player.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ buyerId: user.id }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success!",
+          description: "Player purchased successfully",
+        });
+        // Update user coins
+        setUser({...user, coins: user.coins - player.sale_price});
+        fetchUserData(); // Refresh data
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to purchase player",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to purchase player",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getSkillName = (value) => {
     if (value >= 96) return 'Legendary';
     if (value >= 91) return 'Exceptional';
@@ -162,62 +401,11 @@ export default function App() {
     return 'text-red-800';
   };
 
-  const simulateMatch = (matchId) => {
-    // Navigate to the live match simulation page
-    router.push(`/match/${matchId}`);
-  };
-
-  const createFriendlyMatch = async () => {
-    if (!user || players.length < 11) {
-      toast({
-        title: "Error",
-        description: "You need at least 11 players to create a match",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000' 
-        : '';
-      // For demo, create a match against a random opponent
-      const response = await fetch(`${baseUrl}/api/matches`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          home_team_id: user.id,
-          away_team_id: 'demo-opponent',
-          match_type: 'SOD',
-          scheduled_time: new Date().toISOString(),
-          pitch_type: 'Normal',
-          weather: 'Sunny'
-        }),
-      });
-
-      const match = await response.json();
-
-      if (response.ok) {
-        setMatches([...matches, match]);
-        toast({
-          title: "Match Created!",
-          description: "Your friendly match has been scheduled",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: match.error,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create match",
-        variant: "destructive",
-      });
+  const handlePlayerSelect = (playerId, isSelected) => {
+    if (isSelected && newLineup.players.length < 11) {
+      setNewLineup({...newLineup, players: [...newLineup.players, playerId]});
+    } else if (!isSelected) {
+      setNewLineup({...newLineup, players: newLineup.players.filter(id => id !== playerId)});
     }
   };
 
@@ -230,7 +418,7 @@ export default function App() {
               <Trophy className="w-8 h-8 text-white" />
             </div>
             <CardTitle className="text-2xl">From the Pavilion</CardTitle>
-            <CardDescription>Cricket Management Game</CardDescription>
+            <CardDescription>T20 Cricket Management Game</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs value={authMode} onValueChange={setAuthMode} className="w-full">
@@ -314,10 +502,9 @@ export default function App() {
     );
   }
 
-  const seniorPlayers = players.filter(p => p.squad_type === 'senior');
-  const youthPlayers = players.filter(p => p.squad_type === 'youth');
   const upcomingMatches = matches.filter(m => m.status === 'scheduled');
   const completedMatches = matches.filter(m => m.status === 'completed');
+  const mainLineup = lineups.find(l => l.is_main);
 
   return (
     <div className="min-h-screen bg-background">
@@ -334,6 +521,10 @@ export default function App() {
             </div>
             
             <div className="flex items-center space-x-4">
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <Coins className="w-4 h-4" />
+                <span>{user.coins?.toLocaleString() || '0'} coins</span>
+              </Badge>
               <Badge variant="outline" className="flex items-center space-x-1">
                 <Globe className="w-4 h-4" />
                 <span>{user.country}</span>
@@ -360,23 +551,23 @@ export default function App() {
             </TabsTrigger>
             <TabsTrigger value="players" className="flex items-center space-x-2">
               <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Players</span>
+              <span className="hidden sm:inline">Squad</span>
+            </TabsTrigger>
+            <TabsTrigger value="lineups" className="flex items-center space-x-2">
+              <Edit className="w-4 h-4" />
+              <span className="hidden sm:inline">Lineups</span>
             </TabsTrigger>
             <TabsTrigger value="matches" className="flex items-center space-x-2">
               <Play className="w-4 h-4" />
               <span className="hidden sm:inline">Matches</span>
             </TabsTrigger>
-            <TabsTrigger value="leagues" className="flex items-center space-x-2">
+            <TabsTrigger value="league" className="flex items-center space-x-2">
               <Trophy className="w-4 h-4" />
               <span className="hidden sm:inline">League</span>
             </TabsTrigger>
-            <TabsTrigger value="training" className="flex items-center space-x-2">
-              <Target className="w-4 h-4" />
-              <span className="hidden sm:inline">Training</span>
-            </TabsTrigger>
-            <TabsTrigger value="finances" className="flex items-center space-x-2">
-              <DollarSign className="w-4 h-4" />
-              <span className="hidden sm:inline">Finances</span>
+            <TabsTrigger value="marketplace" className="flex items-center space-x-2">
+              <ShoppingCart className="w-4 h-4" />
+              <span className="hidden sm:inline">Market</span>
             </TabsTrigger>
           </TabsList>
 
@@ -385,21 +576,24 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Senior Players</CardTitle>
+                  <CardTitle className="text-sm font-medium">Squad Players</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{seniorPlayers.length}</div>
+                  <div className="text-2xl font-bold">{players.length}</div>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Youth Players</CardTitle>
-                  <Star className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Lineups</CardTitle>
+                  <Edit className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{youthPlayers.length}</div>
+                  <div className="text-2xl font-bold">{lineups.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {mainLineup ? `Main: ${mainLineup.name}` : 'No main lineup'}
+                  </p>
                 </CardContent>
               </Card>
               
@@ -415,11 +609,11 @@ export default function App() {
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Completed Matches</CardTitle>
-                  <Trophy className="h-4 w-4 text-muted-foregreen" />
+                  <CardTitle className="text-sm font-medium">Virtual Coins</CardTitle>
+                  <Coins className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{completedMatches.length}</div>
+                  <div className="text-2xl font-bold">{user.coins?.toLocaleString() || '0'}</div>
                 </CardContent>
               </Card>
             </div>
@@ -427,7 +621,7 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Upcoming Matches</CardTitle>
+                  <CardTitle>Upcoming T20 Matches</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {upcomingMatches.length === 0 ? (
@@ -435,7 +629,7 @@ export default function App() {
                       <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground mb-4">No upcoming matches</p>
                       <Button onClick={createFriendlyMatch}>
-                        Create Friendly Match
+                        Create T20 Match
                       </Button>
                     </div>
                   ) : (
@@ -443,7 +637,7 @@ export default function App() {
                       {upcomingMatches.slice(0, 3).map((match) => (
                         <div key={match.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div>
-                            <p className="font-medium">{match.match_type} Match</p>
+                            <p className="font-medium">T20 Match</p>
                             <p className="text-sm text-muted-foreground">
                               vs {match.away_team_id === user.id ? 'Home Team' : 'Away Team'}
                             </p>
@@ -477,7 +671,7 @@ export default function App() {
                       {completedMatches.slice(-3).map((match) => (
                         <div key={match.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div>
-                            <p className="font-medium">{match.match_type} Match</p>
+                            <p className="font-medium">T20 Match</p>
                             <p className="text-sm text-muted-foreground">
                               {match.home_score} - {match.away_score}
                             </p>
@@ -494,204 +688,179 @@ export default function App() {
             </div>
           </TabsContent>
 
-          {/* Players Tab */}
+          {/* Squad Tab */}
           <TabsContent value="players" className="space-y-6 mt-6">
-            <Tabs defaultValue="senior" className="w-full">
-              <TabsList>
-                <TabsTrigger value="senior">Senior Squad ({seniorPlayers.length})</TabsTrigger>
-                <TabsTrigger value="youth">Youth Squad ({youthPlayers.length})</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="senior" className="mt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {seniorPlayers.map((player) => (
-                    <Card key={player.id} className="hover:shadow-lg transition-shadow">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">{player.name}</CardTitle>
-                          <Badge variant="outline">{player.age} years</Badge>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Your Squad ({players.length} players)</h2>
+              <Button
+                onClick={() => setCurrentTab('marketplace')}
+                variant="outline"
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Browse Market
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {players.map((player) => (
+                <Card key={player.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{player.name}</CardTitle>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline">{player.age} years</Badge>
+                        {player.is_for_sale && (
+                          <Badge variant="secondary">For Sale</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <CardDescription className="flex items-center space-x-2">
+                      <span>{player.batting_style}</span>
+                      <span>•</span>
+                      <span>{player.bowler_type}</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center space-x-1">
+                            <Target className="w-3 h-3" />
+                            <span>Batting</span>
+                          </span>
+                          <span className={`font-medium ${getSkillColor(player.batting)}`}>
+                            {getSkillName(player.batting)}
+                          </span>
                         </div>
-                        <CardDescription className="flex items-center space-x-2">
-                          <span>{player.batting_style}</span>
-                          <span>•</span>
-                          <span>{player.bowler_type}</span>
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="flex items-center space-x-1">
-                                <Target className="w-3 h-3" />
-                                <span>Batting</span>
-                              </span>
-                              <span className={`font-medium ${getSkillColor(player.batting)}`}>
-                                {getSkillName(player.batting)}
-                              </span>
-                            </div>
-                            <Progress value={player.batting} className="h-2" />
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="flex items-center space-x-1">
-                                <Zap className="w-3 h-3" />
-                                <span>Bowling</span>
-                              </span>
-                              <span className={`font-medium ${getSkillColor(player.bowling)}`}>
-                                {getSkillName(player.bowling)}
-                              </span>
-                            </div>
-                            <Progress value={player.bowling} className="h-2" />
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="flex items-center space-x-1">
-                                <Shield className="w-3 h-3" />
-                                <span>Keeping</span>
-                              </span>
-                              <span className={`font-medium ${getSkillColor(player.keeping)}`}>
-                                {getSkillName(player.keeping)}
-                              </span>
-                            </div>
-                            <Progress value={player.keeping} className="h-2" />
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="flex items-center space-x-1">
-                                <Crown className="w-3 h-3" />
-                                <span>Captaincy</span>
-                              </span>
-                              <span className={`font-medium ${getSkillColor(player.captaincy)}`}>
-                                {getSkillName(player.captaincy)}
-                              </span>
-                            </div>
-                            <Progress value={player.captaincy} className="h-2" />
-                          </div>
+                        <Progress value={player.batting} className="h-2" />
+                      </div>
+                      
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center space-x-1">
+                            <Zap className="w-3 h-3" />
+                            <span>Bowling</span>
+                          </span>
+                          <span className={`font-medium ${getSkillColor(player.bowling)}`}>
+                            {getSkillName(player.bowling)}
+                          </span>
                         </div>
-                        
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <div className="flex items-center space-x-2">
-                            <Badge variant={player.form === 'Excellent' ? 'default' : 
-                                          player.form === 'Good' ? 'secondary' : 'outline'}>
-                              {player.form}
-                            </Badge>
-                            <Badge variant="outline">
-                              ${player.wage?.toLocaleString() || '0'}/week
-                            </Badge>
-                          </div>
-                          <div className="text-right text-sm">
-                            <div className="font-medium">Rating: {player.rating}</div>
-                            <div className="text-muted-foreground">{player.nationality}</div>
-                          </div>
+                        <Progress value={player.bowling} className="h-2" />
+                      </div>
+                      
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center space-x-1">
+                            <Shield className="w-3 h-3" />
+                            <span>Keeping</span>
+                          </span>
+                          <span className={`font-medium ${getSkillColor(player.keeping)}`}>
+                            {getSkillName(player.keeping)}
+                          </span>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="youth" className="mt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {youthPlayers.map((player) => (
-                    <Card key={player.id} className="hover:shadow-lg transition-shadow">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">{player.name}</CardTitle>
-                          <Badge variant="outline">{player.age} years</Badge>
+                        <Progress value={player.keeping} className="h-2" />
+                      </div>
+                      
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center space-x-1">
+                            <Crown className="w-3 h-3" />
+                            <span>Captaincy</span>
+                          </span>
+                          <span className={`font-medium ${getSkillColor(player.captaincy)}`}>
+                            {getSkillName(player.captaincy)}
+                          </span>
                         </div>
-                        <CardDescription className="flex items-center space-x-2">
-                          <span>{player.batting_style}</span>
-                          <span>•</span>
-                          <span>{player.bowler_type}</span>
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="flex items-center space-x-1">
-                                <Target className="w-3 h-3" />
-                                <span>Batting</span>
-                              </span>
-                              <span className={`font-medium ${getSkillColor(player.batting)}`}>
-                                {getSkillName(player.batting)}
-                              </span>
-                            </div>
-                            <Progress value={player.batting} className="h-2" />
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="flex items-center space-x-1">
-                                <Zap className="w-3 h-3" />
-                                <span>Bowling</span>
-                              </span>
-                              <span className={`font-medium ${getSkillColor(player.bowling)}`}>
-                                {getSkillName(player.bowling)}
-                              </span>
-                            </div>
-                            <Progress value={player.bowling} className="h-2" />
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="flex items-center space-x-1">
-                                <Shield className="w-3 h-3" />
-                                <span>Keeping</span>
-                              </span>
-                              <span className={`font-medium ${getSkillColor(player.keeping)}`}>
-                                {getSkillName(player.keeping)}
-                              </span>
-                            </div>
-                            <Progress value={player.keeping} className="h-2" />
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="flex items-center space-x-1">
-                                <Crown className="w-3 h-3" />
-                                <span>Captaincy</span>
-                              </span>
-                              <span className={`font-medium ${getSkillColor(player.captaincy)}`}>
-                                {getSkillName(player.captaincy)}
-                              </span>
-                            </div>
-                            <Progress value={player.captaincy} className="h-2" />
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <div className="flex items-center space-x-2">
-                            <Badge variant={player.form === 'Excellent' ? 'default' : 
-                                          player.form === 'Good' ? 'secondary' : 'outline'}>
-                              {player.form}
-                            </Badge>
-                            <Badge variant="outline">
-                              ${player.wage?.toLocaleString() || '0'}/week
-                            </Badge>
-                          </div>
-                          <div className="text-right text-sm">
-                            <div className="font-medium">Rating: {player.rating}</div>
-                            <div className="text-muted-foreground">{player.nationality}</div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
-            </Tabs>
+                        <Progress value={player.captaincy} className="h-2" />
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={player.form === 'Excellent' ? 'default' : 
+                                      player.form === 'Good' ? 'secondary' : 'outline'}>
+                          {player.form}
+                        </Badge>
+                        <Badge variant="outline">
+                          Rating: {player.rating}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline" className="flex items-center space-x-1">
+                          <Coins className="w-3 h-3" />
+                          <span>{player.market_value?.toLocaleString()}</span>
+                        </Badge>
+                        {!player.is_for_sale && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setPlayerToSell(player);
+                              setShowSellDialog(true);
+                            }}
+                          >
+                            Sell
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Lineups Tab */}
+          <TabsContent value="lineups" className="space-y-6 mt-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Team Lineups</h2>
+              <Button onClick={() => setIsCreatingLineup(true)}>
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Create Lineup
+              </Button>
+            </div>
+
+            {lineups.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Edit className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground mb-4">No lineups created yet</p>
+                  <Button onClick={() => setIsCreatingLineup(true)}>
+                    Create Your First Lineup
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {lineups.map((lineup) => (
+                  <Card key={lineup.id} className={lineup.is_main ? 'ring-2 ring-green-500' : ''}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>{lineup.name}</CardTitle>
+                        {lineup.is_main && <Badge variant="default">Main Lineup</Badge>}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <p><strong>Captain:</strong> {players.find(p => p.id === lineup.captain_id)?.name || 'Unknown'}</p>
+                        <p><strong>Wicketkeeper:</strong> {players.find(p => p.id === lineup.wicketkeeper_id)?.name || 'Unknown'}</p>
+                        <p><strong>1st Bowler:</strong> {players.find(p => p.id === lineup.first_bowler_id)?.name || 'Unknown'}</p>
+                        <p><strong>2nd Bowler:</strong> {players.find(p => p.id === lineup.second_bowler_id)?.name || 'Unknown'}</p>
+                        <p><strong>Players:</strong> {lineup.players?.length || 0}/11</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           {/* Matches Tab */}
           <TabsContent value="matches" className="space-y-6 mt-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Matches</h2>
+              <h2 className="text-2xl font-bold">T20 Matches</h2>
               <Button onClick={createFriendlyMatch}>
-                Create Friendly Match
+                Create T20 Match
               </Button>
             </div>
 
@@ -708,7 +877,7 @@ export default function App() {
                       <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground mb-4">No upcoming matches</p>
                       <Button onClick={createFriendlyMatch}>
-                        Create Friendly Match
+                        Create T20 Match
                       </Button>
                     </CardContent>
                   </Card>
@@ -718,7 +887,7 @@ export default function App() {
                       <Card key={match.id}>
                         <CardHeader>
                           <div className="flex items-center justify-between">
-                            <CardTitle>{match.match_type} Match</CardTitle>
+                            <CardTitle>T20 Match</CardTitle>
                             <Badge variant="outline">{match.status}</Badge>
                           </div>
                           <CardDescription>
@@ -759,7 +928,7 @@ export default function App() {
                       <Card key={match.id}>
                         <CardHeader>
                           <div className="flex items-center justify-between">
-                            <CardTitle>{match.match_type} Match</CardTitle>
+                            <CardTitle>T20 Match</CardTitle>
                             <Badge variant={match.result === user.id ? 'default' : 'destructive'}>
                               {match.result === user.id ? 'Won' : 'Lost'}
                             </Badge>
@@ -773,46 +942,13 @@ export default function App() {
                             <div className="text-lg font-semibold">
                               Final Score: {match.home_score} - {match.away_score}
                             </div>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  View Commentary
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-2xl max-h-[80vh]">
-                                <DialogHeader>
-                                  <DialogTitle>Match Commentary</DialogTitle>
-                                  <DialogDescription>
-                                    {match.match_type} Match - Final Score: {match.home_score} - {match.away_score}
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <ScrollArea className="h-96">
-                                  <div className="space-y-2">
-                                    {match.commentary?.map((comment, index) => (
-                                      <div 
-                                        key={index} 
-                                        className={`p-2 rounded text-sm ${
-                                          comment.isWicket ? 'bg-red-50 border-l-4 border-red-500' : 
-                                          comment.runs === 6 ? 'bg-green-50 border-l-4 border-green-500' :
-                                          comment.runs === 4 ? 'bg-blue-50 border-l-4 border-blue-500' :
-                                          'bg-muted'
-                                        }`}
-                                      >
-                                        <div className="flex items-center justify-between mb-1">
-                                          <span className="font-medium">
-                                            Over {comment.over}.{comment.ball}
-                                          </span>
-                                          <span className="text-muted-foreground">
-                                            {comment.totalRuns}/{comment.wickets}
-                                          </span>
-                                        </div>
-                                        <p>{comment.commentary}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </ScrollArea>
-                              </DialogContent>
-                            </Dialog>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => router.push(`/match/${match.id}`)}
+                            >
+                              View Match
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -824,11 +960,11 @@ export default function App() {
           </TabsContent>
 
           {/* League Tab */}
-          <TabsContent value="leagues" className="space-y-6 mt-6">
+          <TabsContent value="league" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Senior One Day League</CardTitle>
-                <CardDescription>Division I Table</CardDescription>
+                <CardTitle>T20 League Table</CardTitle>
+                <CardDescription>Current Season Standings</CardDescription>
               </CardHeader>
               <CardContent>
                 {leagueTable.length === 0 ? (
@@ -879,98 +1015,254 @@ export default function App() {
             </Card>
           </TabsContent>
 
-          {/* Training Tab */}
-          <TabsContent value="training" className="space-y-6 mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Senior Academy</CardTitle>
-                  <CardDescription>Train your senior squad players</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center py-8">
-                    <Target className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground mb-4">Academy training system</p>
-                    <p className="text-sm text-muted-foreground">Coming soon - assign training programs to improve player skills</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Youth Academy</CardTitle>
-                  <CardDescription>Develop young talent</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center py-8">
-                    <Star className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground mb-4">Youth development system</p>
-                    <p className="text-sm text-muted-foreground">Coming soon - recruit and train youth players</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Finances Tab */}
-          <TabsContent value="finances" className="space-y-6 mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Weekly Income</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">$25,000</div>
-                  <p className="text-xs text-muted-foreground">Gate receipts + Sponsorship</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Weekly Expenses</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-red-600 rotate-180" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
-                    ${seniorPlayers.reduce((sum, p) => sum + (p.wage || 0), 0).toLocaleString()}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Player wages</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Net Position</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foresfbdoreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    ${(25000 - seniorPlayers.reduce((sum, p) => sum + (p.wage || 0), 0)).toLocaleString()}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Weekly profit/loss</p>
-                </CardContent>
-              </Card>
+          {/* Marketplace Tab */}
+          <TabsContent value="marketplace" className="space-y-6 mt-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Player Marketplace</h2>
+              <div className="flex items-center space-x-2">
+                <Badge variant="outline" className="flex items-center space-x-1">
+                  <Coins className="w-4 h-4" />
+                  <span>{user.coins?.toLocaleString() || '0'} coins</span>
+                </Badge>
+              </div>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Financial Overview</CardTitle>
-                <CardDescription>Your club's financial status</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <DollarSign className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground mb-4">Financial management system</p>
-                  <p className="text-sm text-muted-foreground">Coming soon - detailed financial tracking, transfers, and budget management</p>
-                </div>
-              </CardContent>
-            </Card>
+            {marketplace.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No players for sale right now</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {marketplace.map((player) => (
+                  <Card key={player.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">{player.name}</CardTitle>
+                        <Badge variant="secondary">For Sale</Badge>
+                      </div>
+                      <CardDescription className="flex items-center space-x-2">
+                        <span>{player.batting_style}</span>
+                        <span>•</span>
+                        <span>{player.bowler_type}</span>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span>Batting</span>
+                            <span className={`font-medium ${getSkillColor(player.batting)}`}>
+                              {getSkillName(player.batting)}
+                            </span>
+                          </div>
+                          <Progress value={player.batting} className="h-2" />
+                        </div>
+                        
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span>Bowling</span>
+                            <span className={`font-medium ${getSkillColor(player.bowling)}`}>
+                              {getSkillName(player.bowling)}
+                            </span>
+                          </div>
+                          <Progress value={player.bowling} className="h-2" />
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-green-600">
+                            {player.sale_price?.toLocaleString()} coins
+                          </p>
+                          <p className="text-xs text-muted-foreground">Sale Price</p>
+                        </div>
+                        <Button
+                          onClick={() => buyPlayer(player)}
+                          disabled={user.coins < player.sale_price}
+                        >
+                          Buy Player
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
 
       <Toaster />
+
+      {/* Lineup Creation Dialog */}
+      <Dialog open={isCreatingLineup} onOpenChange={setIsCreatingLineup}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Create New Lineup</DialogTitle>
+            <DialogDescription>
+              Select 11 players and assign captain, wicketkeeper, and 2 main bowlers
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="lineup-name">Lineup Name</Label>
+                <Input
+                  id="lineup-name"
+                  value={newLineup.name}
+                  onChange={(e) => setNewLineup({...newLineup, name: e.target.value})}
+                  placeholder="e.g., Main T20 Team"
+                />
+              </div>
+              <div className="flex items-center space-x-2 pt-6">
+                <Checkbox
+                  id="is-main"
+                  checked={newLineup.is_main}
+                  onCheckedChange={(checked) => setNewLineup({...newLineup, is_main: checked})}
+                />
+                <Label htmlFor="is-main">Set as main lineup</Label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <Label>Captain</Label>
+                <Select value={newLineup.captain_id} onValueChange={(value) => setNewLineup({...newLineup, captain_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select captain" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label>Wicketkeeper</Label>
+                <Select value={newLineup.wicketkeeper_id} onValueChange={(value) => setNewLineup({...newLineup, wicketkeeper_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select keeper" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label>1st Bowler</Label>
+                <Select value={newLineup.first_bowler_id} onValueChange={(value) => setNewLineup({...newLineup, first_bowler_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select 1st bowler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label>2nd Bowler</Label>
+                <Select value={newLineup.second_bowler_id} onValueChange={(value) => setNewLineup({...newLineup, second_bowler_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select 2nd bowler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Select Players ({newLineup.players.length}/11)</Label>
+              <ScrollArea className="h-64 border rounded-md p-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {players.map((player) => (
+                    <div key={player.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={player.id}
+                        checked={newLineup.players.includes(player.id)}
+                        onCheckedChange={(checked) => handlePlayerSelect(player.id, checked)}
+                        disabled={!newLineup.players.includes(player.id) && newLineup.players.length >= 11}
+                      />
+                      <Label htmlFor={player.id} className="text-sm">
+                        {player.name} (Rating: {player.rating})
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreatingLineup(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={createLineup}
+              disabled={newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id || 
+                        !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name}
+            >
+              Create Lineup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sell Player Dialog */}
+      <Dialog open={showSellDialog} onOpenChange={setShowSellDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sell Player</DialogTitle>
+            <DialogDescription>
+              Set a sale price for {playerToSell?.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="sale-price">Sale Price (coins)</Label>
+              <Input
+                id="sale-price"
+                type="number"
+                value={salePrice}
+                onChange={(e) => setSalePrice(e.target.value)}
+                placeholder="Enter price in coins"
+              />
+            </div>
+            
+            {playerToSell && (
+              <div className="text-sm text-muted-foreground">
+                <p>Market Value: {playerToSell.market_value?.toLocaleString()} coins</p>
+                <p>Player Rating: {playerToSell.rating}</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSellDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={sellPlayer} disabled={!salePrice}>
+              List for Sale
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
