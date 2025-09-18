@@ -178,8 +178,8 @@ class T20BackendTester:
             self.log_test("Enhanced Match Simulation", False, "No match ID available")
             return False
         
-        # Simulate the match
-        response = self.make_request("POST", f"/matches/{self.match_id}/simulate")
+        # Simulate the match (using GET as per backend implementation)
+        response = self.make_request("GET", f"/matches/{self.match_id}/simulate")
         if not response or response.status_code != 200:
             self.log_test("Enhanced Match Simulation", False, "Failed to simulate match",
                         {"status_code": response.status_code if response else "No response"})
