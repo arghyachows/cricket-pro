@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Build From the Pavilion - A comprehensive cricket management game with email authentication, player management system with 9 skill attributes, detailed ball-by-ball match simulation engine, league tables, and real-time commentary. Users manage cricket clubs, compete against other teams, and handle squad management, training, finances, and competitions."
+user_problem_statement: "Build Cricket Pro - A comprehensive cricket management game with email authentication, player management system with 9 skill attributes, detailed ball-by-ball match simulation engine, league tables, and real-time commentary. Users manage cricket clubs, compete against other teams, and handle squad management, training, finances, and competitions."
 
 backend:
   - task: "Authentication API endpoints"
