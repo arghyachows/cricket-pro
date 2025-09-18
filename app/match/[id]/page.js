@@ -18,7 +18,12 @@ import {
   Target,
   Zap,
   Crown,
-  Clock
+  Clock,
+  BarChart3,
+  Activity,
+  Users,
+  TrendingUp,
+  Layers
 } from 'lucide-react';
 
 export default function MatchSimulation() {
