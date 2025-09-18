@@ -633,6 +633,67 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Live Matches Section */}
+              {inProgressMatches.length > 0 && (
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                      <span>Live Matches</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {inProgressMatches.map((match) => (
+                        <div key={match.id} className="p-4 border rounded-lg bg-gradient-to-r from-green-50 to-blue-50">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="outline" className="bg-red-500 text-white">
+                                {match.status === 'paused' ? 'PAUSED' : 'LIVE'}
+                              </Badge>
+                              <span className="text-sm font-medium">T20 Match</span>
+                            </div>
+                            <Badge variant="secondary">
+                              {match.weather} • {match.pitch_type}
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-2 mb-3">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm">{user.team_name}</span>
+                              <span className="font-bold">{match.current_runs || 0}/{match.current_wickets || 0}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
+                              <span>Overs: {match.current_over || 0}.{match.current_ball || 0}</span>
+                              {match.current_runs && match.current_over && (
+                                <span>RR: {((match.current_runs / ((match.current_over * 6 + match.current_ball) / 6)) || 0).toFixed(2)}</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex space-x-2">
+                            <Button 
+                              size="sm" 
+                              onClick={() => simulateMatch(match.id)}
+                              className="flex-1"
+                            >
+                              Resume Match
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => router.push(`/match/${match.id}`)}
+                            >
+                              View
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle>Upcoming T20 Matches</CardTitle>
@@ -654,6 +715,9 @@ export default function App() {
                             <p className="font-medium">T20 Match</p>
                             <p className="text-sm text-muted-foreground">
                               vs {match.away_team_id === user.id ? 'Home Team' : 'Away Team'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {match.weather} • {match.pitch_type}
                             </p>
                           </div>
                           <Button 
