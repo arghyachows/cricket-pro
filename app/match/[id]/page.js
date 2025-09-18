@@ -163,6 +163,9 @@ export default function MatchSimulation() {
       setCurrentWickets(comment.wickets);
       setCurrentOver(comment.over);
       setCurrentBall(comment.ball);
+      setCurrentRunRate(comment.currentRunRate || 0);
+      setRequiredRunRate(comment.requiredRunRate);
+      setBallsLeft(comment.ballsLeft);
       
       // Add comment to display
       setCommentary(prev => [...prev, comment]);
