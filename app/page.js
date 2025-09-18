@@ -504,6 +504,7 @@ export default function App() {
 
   const upcomingMatches = matches.filter(m => m.status === 'scheduled');
   const completedMatches = matches.filter(m => m.status === 'completed');
+  const inProgressMatches = matches.filter(m => m.status === 'in-progress' || m.status === 'paused');
   const mainLineup = lineups.find(l => l.is_main);
 
   return (
