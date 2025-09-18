@@ -136,7 +136,7 @@ class T20BackendTester:
             return False
         
         # Test start match
-        response = self.make_request("POST", f"/matches/{self.match_id}/start")
+        response = self.make_request("POST", f"/matches/{self.match_id}/start", {})
         if response and response.status_code == 200:
             self.log_test("Match Start", True, "Match started successfully")
             
