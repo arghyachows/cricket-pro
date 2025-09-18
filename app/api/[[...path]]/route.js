@@ -75,7 +75,10 @@ function generatePlayer(age = null) {
     batting_style: battingStyles[Math.floor(Math.random() * battingStyles.length)],
     bowler_type: bowlerTypes[Math.floor(Math.random() * bowlerTypes.length)],
     talents: [],
-    squad_type: squad_type
+    squad_type: 'senior',
+    market_value: Math.floor(overall * 1000) + Math.floor(Math.random() * 10000),
+    is_for_sale: false,
+    sale_price: 0
   };
 }
 
