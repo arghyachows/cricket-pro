@@ -39,6 +39,7 @@ export default function MatchSimulation() {
   const [showEventPopup, setShowEventPopup] = useState(false);
   const [currentEvent, setCurrentEvent] = useState(null);
   const [matchResult, setMatchResult] = useState(null);
+  const [currentView, setCurrentView] = useState('commentary'); // 'commentary' or 'scorecard'
   const intervalRef = useRef(null);
   const scrollRef = useRef(null);
 
@@ -47,6 +48,10 @@ export default function MatchSimulation() {
   const [currentWickets, setCurrentWickets] = useState(0);
   const [currentOver, setCurrentOver] = useState(0);
   const [currentBall, setCurrentBall] = useState(0);
+  const [currentRunRate, setCurrentRunRate] = useState(0);
+  const [requiredRunRate, setRequiredRunRate] = useState(null);
+  const [target, setTarget] = useState(null);
+  const [ballsLeft, setBallsLeft] = useState(null);
 
   useEffect(() => {
     if (params.id) {
