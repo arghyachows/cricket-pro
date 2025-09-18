@@ -945,6 +945,9 @@ export default function App() {
             <Tabs defaultValue="upcoming" className="w-full">
               <TabsList>
                 <TabsTrigger value="upcoming">Upcoming ({upcomingMatches.length})</TabsTrigger>
+                {inProgressMatches.length > 0 && (
+                  <TabsTrigger value="live">Live ({inProgressMatches.length})</TabsTrigger>
+                )}
                 <TabsTrigger value="completed">Completed ({completedMatches.length})</TabsTrigger>
               </TabsList>
               
