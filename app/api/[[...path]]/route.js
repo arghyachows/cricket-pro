@@ -796,10 +796,7 @@ export async function GET(request, { params }) {
     }
 
     if (path[0] === 'leagues') {
-      // Get league table (T20 only now)
-      const matchType = 'T20';
-      
-      // Aggregate match results to create league table
+      // Get enhanced league table with detailed statistics
       const matches = await db.collection('matches').find({ 
         match_type: 'T20',
         status: 'completed'
@@ -819,11 +816,16 @@ export async function GET(request, { params }) {
             lost: 0,
             tied: 0,
             points: 0,
-            runRate: 0,
+            netRunRate: 0,
             runsFor: 0,
             runsAgainst: 0,
-            ballsFaced: 0,
-            ballsBowled: 0
+            oversFor: 0,
+            oversAgainst: 0,
+            highestScore: 0,
+            lowestScore: 999,
+            averageScore: 0,
+            winPercentage: 0,
+            form: [] // Last 5 matches
           };
         }
         
@@ -837,46 +839,88 @@ export async function GET(request, { params }) {
             lost: 0,
             tied: 0,
             points: 0,
-            runRate: 0,
+            netRunRate: 0,
             runsFor: 0,
             runsAgainst: 0,
-            ballsFaced: 0,
-            ballsBowled: 0
+            oversFor: 0,
+            oversAgainst: 0,
+            highestScore: 0,
+            lowestScore: 999,
+            averageScore: 0,
+            winPercentage: 0,
+            form: []
           };
         }
         
         // Update stats
         teams[match.home_team_id].played++;
         teams[match.away_team_id].played++;
+        
         teams[match.home_team_id].runsFor += match.home_score;
         teams[match.home_team_id].runsAgainst += match.away_score;
+        teams[match.home_team_id].oversFor += match.home_overs || 20;
+        teams[match.home_team_id].oversAgainst += match.away_overs || 20;
+        
         teams[match.away_team_id].runsFor += match.away_score;
         teams[match.away_team_id].runsAgainst += match.home_score;
+        teams[match.away_team_id].oversFor += match.away_overs || 20;
+        teams[match.away_team_id].oversAgainst += match.home_overs || 20;
         
-        if (match.home_score > match.away_score) {
+        // Track highest and lowest scores
+        teams[match.home_team_id].highestScore = Math.max(teams[match.home_team_id].highestScore, match.home_score);
+        teams[match.home_team_id].lowestScore = Math.min(teams[match.home_team_id].lowestScore, match.home_score);
+        teams[match.away_team_id].highestScore = Math.max(teams[match.away_team_id].highestScore, match.away_score);
+        teams[match.away_team_id].lowestScore = Math.min(teams[match.away_team_id].lowestScore, match.away_score);
+        
+        // Update win/loss records and form
+        if (match.result === match.home_team_id) {
           teams[match.home_team_id].won++;
           teams[match.home_team_id].points += 4;
           teams[match.away_team_id].lost++;
-        } else if (match.away_score > match.home_score) {
+          teams[match.home_team_id].form.unshift('W');
+          teams[match.away_team_id].form.unshift('L');
+        } else if (match.result === match.away_team_id) {
           teams[match.away_team_id].won++;
           teams[match.away_team_id].points += 4;
           teams[match.home_team_id].lost++;
+          teams[match.away_team_id].form.unshift('W');
+          teams[match.home_team_id].form.unshift('L');
         } else {
           teams[match.home_team_id].tied++;
           teams[match.away_team_id].tied++;
           teams[match.home_team_id].points += 2;
           teams[match.away_team_id].points += 2;
+          teams[match.home_team_id].form.unshift('T');
+          teams[match.away_team_id].form.unshift('T');
+        }
+        
+        // Keep only last 5 matches in form
+        if (teams[match.home_team_id].form.length > 5) {
+          teams[match.home_team_id].form = teams[match.home_team_id].form.slice(0, 5);
+        }
+        if (teams[match.away_team_id].form.length > 5) {
+          teams[match.away_team_id].form = teams[match.away_team_id].form.slice(0, 5);
         }
       }
       
-      // Calculate net run rate and sort
+      // Calculate final statistics and sort
       const leagueTable = Object.values(teams).map(team => {
-        team.runRate = team.played > 0 ? 
-          ((team.runsFor - team.runsAgainst) / team.played).toFixed(2) : 0;
+        // Net Run Rate calculation
+        const runRateFor = team.oversFor > 0 ? team.runsFor / team.oversFor : 0;
+        const runRateAgainst = team.oversAgainst > 0 ? team.runsAgainst / team.oversAgainst : 0;
+        team.netRunRate = (runRateFor - runRateAgainst).toFixed(3);
+        
+        // Other calculations
+        team.averageScore = team.played > 0 ? (team.runsFor / team.played).toFixed(1) : '0.0';
+        team.winPercentage = team.played > 0 ? ((team.won / team.played) * 100).toFixed(1) : '0.0';
+        
+        // Handle lowest score for teams that haven't played
+        if (team.lowestScore === 999) team.lowestScore = 0;
+        
         return team;
       }).sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
-        return parseFloat(b.runRate) - parseFloat(a.runRate);
+        return parseFloat(b.netRunRate) - parseFloat(a.netRunRate);
       });
       
       return NextResponse.json(leagueTable);
