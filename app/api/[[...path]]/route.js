@@ -83,8 +83,8 @@ function generatePlayer(age = null) {
 }
 
 // Match simulation functions
-function simulateInnings(battingTeam, bowlingTeam, overs = 50, matchType = 'SOD') {
-  const maxOvers = matchType === 'ST20' || matchType === 'YT20' ? 20 : 50;
+function simulateInnings(battingTeam, bowlingTeam, overs = 20, matchType = 'T20') {
+  const maxOvers = 20; // T20 format only
   const targetOvers = Math.min(overs, maxOvers);
   
   let runs = 0;
