@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Cricket Pavilion Management Game
-Tests all core API endpoints including authentication, player management, 
-match simulation, and league systems.
+Enhanced T20 Cricket Simulation Backend Test Suite
+Tests all new T20 features including enhanced match simulation, state management, 
+league statistics, and match filtering.
 """
 
 import requests
 import json
 import time
-import uuid
-from typing import Dict, Any, Optional
+import sys
+from datetime import datetime, timedelta
 
 # Configuration
-BASE_URL = "http://localhost:3000/api"
-TEST_USER_EMAIL = "test.manager@cricketclub.com"
-TEST_USER_PASSWORD = "testpass123"
-TEST_USERNAME = "testmanager"
-TEST_TEAM_NAME = "Test Cricket Club"
-TEST_COUNTRY = "England"
-TEST_NATIONALITY = "English"
+BASE_URL = "http://localhost:3000/api"  # Will be updated with actual URL
+TEST_USER_EMAIL = "rohit.sharma@cricket.com"
+TEST_USER_PASSWORD = "captain123"
+TEST_USER_DATA = {
+    "email": TEST_USER_EMAIL,
+    "password": TEST_USER_PASSWORD,
+    "username": "rohit_sharma",
+    "team_name": "Mumbai Indians",
+    "country": "India",
+    "nationality": "Indian"
+}
 
 class CricketAPITester:
     def __init__(self):
