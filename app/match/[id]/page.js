@@ -367,17 +367,52 @@ export default function MatchSimulation() {
             </Card>
           </div>
 
-          {/* Commentary */}
+          {/* Commentary/Scorecard */}
           <div className="lg:col-span-2">
             <Card className="h-[600px]">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="w-5 h-5" />
-                  <span>Live Commentary</span>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    {currentView === 'commentary' ? (
+                      <>
+                        <Clock className="w-5 h-5" />
+                        <span>Live Commentary</span>
+                      </>
+                    ) : (
+                      <>
+                        <BarChart3 className="w-5 h-5" />
+                        <span>Scorecard</span>
+                      </>
+                    )}
+                  </div>
+                  
+                  <div className="flex space-x-2">
+                    <Button
+                      variant={currentView === 'commentary' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCurrentView('commentary')}
+                    >
+                      <Clock className="w-4 h-4 mr-1" />
+                      Commentary
+                    </Button>
+                    <Button
+                      variant={currentView === 'scorecard' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCurrentView('scorecard')}
+                      disabled={!simulationComplete || !matchResult}
+                    >
+                      <BarChart3 className="w-4 h-4 mr-1" />
+                      Scorecard
+                    </Button>
+                  </div>
+                </div>
+                
                 <CardDescription>
-                  {isSimulating ? 'Live ball-by-ball commentary' : 
-                   simulationComplete ? 'Match completed' : 'Ready to start simulation'}
+                  {currentView === 'commentary' 
+                    ? (isSimulating ? 'Live ball-by-ball commentary' : 
+                       simulationComplete ? 'Match completed' : 'Ready to start simulation')
+                    : 'Detailed match statistics and player performances'
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
