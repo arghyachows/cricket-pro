@@ -971,56 +971,6 @@ export default function App() {
       </div>
 
       <Toaster />
-      
-      {/* Match Result Dialog */}
-      {selectedMatch && (
-        <Dialog open={!!selectedMatch} onOpenChange={() => setSelectedMatch(null)}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle>Match Result</DialogTitle>
-              <DialogDescription>
-                {selectedMatch.match_type} Match - Final Score: {selectedMatch.homeScore} vs {selectedMatch.awayScore}
-              </DialogDescription>
-            </DialogHeader>
-            <ScrollArea className="h-96">
-              <div className="space-y-2">
-                {matchCommentary.map((comment, index) => (
-                  <div 
-                    key={index} 
-                    className={`p-3 rounded ${
-                      comment.isWicket ? 'bg-red-50 border-l-4 border-red-500' : 
-                      comment.runs === 6 ? 'bg-green-50 border-l-4 border-green-500' :
-                      comment.runs === 4 ? 'bg-blue-50 border-l-4 border-blue-500' :
-                      'bg-muted'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold">
-                        Over {comment.over}.{comment.ball}
-                      </span>
-                      <span className="text-sm font-medium">
-                        {comment.totalRuns}/{comment.wickets}
-                      </span>
-                    </div>
-                    <p className="text-sm">{comment.commentary}</p>
-                    <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-                      <span>{comment.batsman} facing {comment.bowler}</span>
-                      {comment.runs > 0 && !comment.isWicket && (
-                        <Badge variant="outline" className="text-xs">
-                          {comment.runs} run{comment.runs > 1 ? 's' : ''}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-            <DialogFooter>
-              <Button onClick={() => setSelectedMatch(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
