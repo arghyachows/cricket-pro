@@ -1,6 +1,6 @@
 # Overview
 
-From the Pavilion is a comprehensive cricket management game built with Next.js and MongoDB. The application simulates realistic T20 cricket matches with detailed player statistics, team management, marketplace trading, and league competition systems. Users can create and manage their own cricket clubs, recruit players, participate in matches, and compete in league tables while experiencing authentic cricket simulation with ball-by-ball commentary.
+Cricket Pro is a comprehensive cricket management game built with Next.js and MongoDB. The application simulates realistic T20 cricket matches with detailed player statistics, team management, marketplace trading, and league competition systems. Users can create and manage their own cricket clubs, recruit players, participate in matches, and compete in league tables while experiencing authentic cricket simulation with ball-by-ball commentary.
 
 # User Preferences
 
