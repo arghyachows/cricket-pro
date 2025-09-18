@@ -48,28 +48,19 @@ class T20BackendTester:
     def make_request(self, method, endpoint, data=None, params=None):
         """Make HTTP request with error handling"""
         url = f"{self.base_url}{endpoint}"
-        
         try:
-            if method.upper() == "GET":
+            if method == "GET":
                 response = requests.get(url, params=params, timeout=30)
-            elif method.upper() == "POST":
+            elif method == "POST":
                 response = requests.post(url, json=data, timeout=30)
-            elif method.upper() == "PUT":
+            elif method == "PUT":
                 response = requests.put(url, json=data, timeout=30)
-            elif method.upper() == "DELETE":
+            elif method == "DELETE":
                 response = requests.delete(url, timeout=30)
-            else:
-                return {"error": f"Unsupported method: {method}", "status_code": 400}
-                
-            return {
-                "status_code": response.status_code,
-                "data": response.json() if response.content else {},
-                "success": 200 <= response.status_code < 300
-            }
+            
+            return response
         except requests.exceptions.RequestException as e:
-            return {"error": str(e), "status_code": 0, "success": False}
-        except json.JSONDecodeError as e:
-            return {"error": f"JSON decode error: {str(e)}", "status_code": response.status_code, "success": False}
+            return None
             
     def test_authentication(self):
         """Test authentication endpoints"""
