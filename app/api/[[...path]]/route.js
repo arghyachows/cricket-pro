@@ -370,7 +370,7 @@ export async function GET(request, { params }) {
       
       // Aggregate match results to create league table
       const matches = await db.collection('matches').find({ 
-        match_type: matchType,
+        match_type: 'T20',
         status: 'completed'
       }).toArray();
       
