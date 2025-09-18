@@ -239,10 +239,20 @@ export async function GET(request, { params }) {
           squad_type: match.match_type.includes('Y') ? 'youth' : 'senior'
         }).limit(11).toArray();
         
-        const awayTeam = await db.collection('players').find({ 
+        let awayTeam = await db.collection('players').find({ 
           user_id: match.away_team_id,
           squad_type: match.match_type.includes('Y') ? 'youth' : 'senior'
         }).limit(11).toArray();
+        
+        // If away team has no players (demo opponent), generate them
+        if (awayTeam.length === 0) {
+          awayTeam = [];
+          for (let i = 0; i < 11; i++) {
+            const player = generatePlayer(null, match.match_type.includes('Y') ? 'youth' : 'senior');
+            player.user_id = match.away_team_id;
+            awayTeam.push(player);
+          }
+        }
 
         // Simulate innings
         const firstInnings = simulateInnings(homeTeam, awayTeam, 50, match.match_type);
