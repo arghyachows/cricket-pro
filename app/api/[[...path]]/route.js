@@ -447,23 +447,16 @@ export async function POST(request, { params }) {
         
         await db.collection('users').insertOne(user);
         
-        // Generate starting squad (15 senior players, 10 youth players)
+        // Generate starting squad (15 senior players only)
         const seniorPlayers = [];
-        const youthPlayers = [];
         
         for (let i = 0; i < 15; i++) {
-          const player = generatePlayer(null, 'senior');
+          const player = generatePlayer();
           player.user_id = userId;
           seniorPlayers.push(player);
         }
         
-        for (let i = 0; i < 10; i++) {
-          const player = generatePlayer(null, 'youth');
-          player.user_id = userId;
-          youthPlayers.push(player);
-        }
-        
-        await db.collection('players').insertMany([...seniorPlayers, ...youthPlayers]);
+        await db.collection('players').insertMany(seniorPlayers);
         
         // Remove password from response
         const { password: _, ...userResponse } = user;
