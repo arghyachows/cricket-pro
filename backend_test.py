@@ -31,23 +31,21 @@ class T20BackendTester:
         self.match_id = None
         self.test_results = []
         
-    def log_result(self, category: str, test_name: str, success: bool, details: str):
-        """Log test result"""
-        if success:
-            self.test_results[category]["passed"] += 1
-            status = "✅ PASS"
-        else:
-            self.test_results[category]["failed"] += 1
-            status = "❌ FAIL"
-            
-        self.test_results[category]["details"].append({
+    def log_test(self, test_name, success, message, details=None):
+        """Log test results"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        result = {
             "test": test_name,
             "status": status,
-            "details": details
-        })
-        print(f"{status}: {test_name} - {details}")
-        
-    def make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None) -> Dict[str, Any]:
+            "message": message,
+            "details": details or {}
+        }
+        self.test_results.append(result)
+        print(f"{status}: {test_name} - {message}")
+        if details and not success:
+            print(f"   Details: {details}")
+    
+    def make_request(self, method, endpoint, data=None, params=None):
         """Make HTTP request with error handling"""
         url = f"{self.base_url}{endpoint}"
         
