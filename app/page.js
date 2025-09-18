@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
@@ -39,8 +40,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [currentTab, setCurrentTab] = useState('dashboard');
-  const [selectedMatch, setSelectedMatch] = useState(null);
-  const [matchCommentary, setMatchCommentary] = useState([]);
   const { toast } = useToast();
 
   // Auth state
