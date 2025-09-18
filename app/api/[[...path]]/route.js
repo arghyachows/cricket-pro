@@ -278,22 +278,38 @@ function simulateInnings(battingTeam, bowlingTeam, target = null, matchCondition
             };
           }
         } else {
-          // Runs scored
-          const aggressionLevel = pressureFactor * (isPowerplay ? 1.2 : isDeathOvers ? 1.5 : 1.0);
+          // Runs scored - Enhanced for exciting T20 action
+          const aggressionLevel = pressureFactor * (isPowerplay ? 1.3 : isDeathOvers ? 1.8 : 1.0);
           const runChance = Math.random() * 100;
           
-          if (runChance < (batsmanSkill / 10) * aggressionLevel) {
-            if (runChance < (batsmanSkill / 50) * aggressionLevel) {
+          // Much higher scoring chance for T20 excitement (average 6-8 runs per over)
+          const baseScoreChance = (batsmanSkill / 3.5) * aggressionLevel;
+          
+          if (runChance < baseScoreChance) {
+            // Boundaries are more frequent in T20s
+            const boundaryChance = Math.random() * 100;
+            const sixChance = (batsmanSkill / 12) * aggressionLevel * (isPowerplay ? 1.2 : isDeathOvers ? 1.5 : 1.0);
+            const fourChance = (batsmanSkill / 8) * aggressionLevel * (isPowerplay ? 1.3 : isDeathOvers ? 1.4 : 1.0);
+            
+            if (boundaryChance < sixChance) {
               ballRuns = 6;
               batsmanScores[currentBatsman1].sixes++;
               ballCommentary = generateBoundaryCommentary(batsman, bowler, 6, runs + 6, isPowerplay, isDeathOvers);
-            } else if (runChance < (batsmanSkill / 25) * aggressionLevel) {
+            } else if (boundaryChance < fourChance) {
               ballRuns = 4;
               batsmanScores[currentBatsman1].fours++;
               ballCommentary = generateBoundaryCommentary(batsman, bowler, 4, runs + 4, isPowerplay, isDeathOvers);
             } else {
-              ballRuns = Math.floor(Math.random() * 3) + 1;
-              ballCommentary = `${batsman.name} works it for ${ballRuns} run${ballRuns > 1 ? 's' : ''}`;
+              // More varied singles/doubles for T20 pace
+              const singleChance = Math.random();
+              if (singleChance < 0.6) {
+                ballRuns = 1;
+              } else if (singleChance < 0.85) {
+                ballRuns = 2;
+              } else {
+                ballRuns = 3;
+              }
+              ballCommentary = `${batsman.name} ${ballRuns === 1 ? 'picks up a single' : ballRuns === 2 ? 'finds the gap for two' : 'scampers back for three runs'}`;
             }
           } else {
             ballRuns = 0;
@@ -553,6 +569,10 @@ export async function GET(request, { params }) {
           return NextResponse.json({ error: 'Match not found' }, { status: 404 });
         }
 
+        // Get team information
+        const homeUser = await db.collection('users').findOne({ id: match.home_team_id });
+        const awayUser = await db.collection('users').findOne({ id: match.away_team_id });
+        
         // Get teams and players (T20 only now)
         const homeTeam = await db.collection('players').find({ 
           user_id: match.home_team_id,
@@ -608,6 +628,8 @@ export async function GET(request, { params }) {
           awayScore: `${secondInnings.runs}/${secondInnings.wickets}`,
           homeOvers: firstInnings.overs,
           awayOvers: secondInnings.overs,
+          homeTeamName: homeUser?.team_name || 'Home Team',
+          awayTeamName: awayUser?.team_name || 'Away Team',
           winner,
           winMargin,
           winType,
@@ -1185,6 +1207,28 @@ export async function PUT(request, { params }) {
       
       const updatedPlayer = await db.collection('players').findOne({ id: path[1] });
       return NextResponse.json(updatedPlayer);
+    }
+
+    if (path[0] === 'lineups' && path[1]) {
+      // If this is set as main lineup, unset others
+      if (body.is_main) {
+        await db.collection('lineups').updateMany(
+          { user_id: body.user_id },
+          { $set: { is_main: false } }
+        );
+      }
+      
+      const result = await db.collection('lineups').updateOne(
+        { id: path[1] },
+        { $set: { ...body, updated_at: new Date() } }
+      );
+      
+      if (result.matchedCount === 0) {
+        return NextResponse.json({ error: 'Lineup not found' }, { status: 404 });
+      }
+      
+      const updatedLineup = await db.collection('lineups').findOne({ id: path[1] });
+      return NextResponse.json(updatedLineup);
     }
 
     if (path[0] === 'matches' && path[1]) {

@@ -47,10 +47,13 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [backgroundMatch, setBackgroundMatch] = useState(null);
   const { toast } = useToast();
 
-  // Lineup creation state
+  // Lineup creation/editing state
   const [isCreatingLineup, setIsCreatingLineup] = useState(false);
+  const [isEditingLineup, setIsEditingLineup] = useState(false);
+  const [editingLineupId, setEditingLineupId] = useState(null);
   const [newLineup, setNewLineup] = useState({
     name: '',
     players: [],
@@ -79,8 +82,38 @@ export default function App() {
   useEffect(() => {
     if (user) {
       fetchUserData();
+      checkBackgroundMatch();
     }
   }, [user]);
+
+  const checkBackgroundMatch = () => {
+    try {
+      const savedMatch = localStorage.getItem('backgroundMatch');
+      if (savedMatch) {
+        const matchState = JSON.parse(savedMatch);
+        // Check if match is less than 24 hours old
+        if (Date.now() - matchState.timestamp < 24 * 60 * 60 * 1000) {
+          setBackgroundMatch(matchState);
+        } else {
+          localStorage.removeItem('backgroundMatch');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking background match:', error);
+      localStorage.removeItem('backgroundMatch');
+    }
+  };
+
+  const returnToMatch = () => {
+    if (backgroundMatch) {
+      router.push(`/match/${backgroundMatch.matchId}`);
+    }
+  };
+
+  const dismissBackgroundMatch = () => {
+    localStorage.removeItem('backgroundMatch');
+    setBackgroundMatch(null);
+  };
 
   const fetchUserData = async () => {
     if (!user) return;
@@ -224,7 +257,22 @@ export default function App() {
     }
   };
 
-  const createLineup = async () => {
+  const startEditLineup = (lineup) => {
+    setEditingLineupId(lineup.id);
+    setNewLineup({
+      name: lineup.name,
+      players: lineup.players || [],
+      captain_id: lineup.captain_id,
+      wicketkeeper_id: lineup.wicketkeeper_id,
+      first_bowler_id: lineup.first_bowler_id,
+      second_bowler_id: lineup.second_bowler_id,
+      is_main: lineup.is_main
+    });
+    setIsEditingLineup(true);
+    setIsCreatingLineup(true); // Reuse the same dialog
+  };
+
+  const createOrUpdateLineup = async () => {
     if (newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id || 
         !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name) {
       toast({
@@ -236,11 +284,13 @@ export default function App() {
     }
 
     try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000' 
-        : '';
-      const response = await fetch(`${baseUrl}/api/lineups`, {
-        method: 'POST',
+      const baseUrl = '';
+      
+      const url = isEditingLineup ? `${baseUrl}/api/lineups/${editingLineupId}` : `${baseUrl}/api/lineups`;
+      const method = isEditingLineup ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -253,8 +303,15 @@ export default function App() {
       const lineup = await response.json();
 
       if (response.ok) {
-        setLineups([...lineups, lineup]);
+        if (isEditingLineup) {
+          setLineups(lineups.map(l => l.id === editingLineupId ? lineup : l));
+        } else {
+          setLineups([...lineups, lineup]);
+        }
+        
         setIsCreatingLineup(false);
+        setIsEditingLineup(false);
+        setEditingLineupId(null);
         setNewLineup({
           name: '',
           players: [],
@@ -264,9 +321,10 @@ export default function App() {
           second_bowler_id: '',
           is_main: false
         });
+        
         toast({
           title: "Success!",
-          description: "Lineup created successfully",
+          description: isEditingLineup ? "Lineup updated successfully" : "Lineup created successfully",
         });
       } else {
         toast({
@@ -278,7 +336,7 @@ export default function App() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create lineup",
+        description: isEditingLineup ? "Failed to update lineup" : "Failed to create lineup",
         variant: "destructive",
       });
     }
@@ -574,6 +632,47 @@ export default function App() {
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-6 mt-6">
+            {/* Background Match Alert */}
+            {backgroundMatch && (
+              <Card className="border-orange-200 bg-orange-50">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+                      <CardTitle className="text-orange-800">Match in Progress</CardTitle>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={dismissBackgroundMatch}>
+                      ×
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <p className="text-sm text-orange-700">
+                      You have a T20 match running in the background
+                    </p>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium">Score:</span> {backgroundMatch.currentRuns}/{backgroundMatch.currentWickets}
+                      </div>
+                      <div>
+                        <span className="font-medium">Over:</span> {backgroundMatch.currentOver}.{backgroundMatch.currentBall}
+                      </div>
+                    </div>
+                    {backgroundMatch.target && (
+                      <div className="text-sm">
+                        <span className="font-medium">Target:</span> {backgroundMatch.target} runs
+                      </div>
+                    )}
+                    <Button onClick={returnToMatch} className="w-full mt-3">
+                      <Play className="w-4 h-4 mr-2" />
+                      Return to Match
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -925,6 +1024,17 @@ export default function App() {
                         <p><strong>1st Bowler:</strong> {players.find(p => p.id === lineup.first_bowler_id)?.name || 'Unknown'}</p>
                         <p><strong>2nd Bowler:</strong> {players.find(p => p.id === lineup.second_bowler_id)?.name || 'Unknown'}</p>
                         <p><strong>Players:</strong> {lineup.players?.length || 0}/11</p>
+                      </div>
+                      <div className="mt-4 pt-4 border-t">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => startEditLineup(lineup)}
+                          className="w-full"
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit Lineup
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -1279,7 +1389,7 @@ export default function App() {
       <Dialog open={isCreatingLineup} onOpenChange={setIsCreatingLineup}>
         <DialogContent className="max-w-4xl max-h-[80vh]">
           <DialogHeader>
-            <DialogTitle>Create New Lineup</DialogTitle>
+            <DialogTitle>{isEditingLineup ? 'Edit Lineup' : 'Create New Lineup'}</DialogTitle>
             <DialogDescription>
               Select 11 players and assign captain, wicketkeeper, and 2 main bowlers
             </DialogDescription>
@@ -1391,11 +1501,11 @@ export default function App() {
               Cancel
             </Button>
             <Button
-              onClick={createLineup}
+              onClick={createOrUpdateLineup}
               disabled={newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id || 
                         !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name}
             >
-              Create Lineup
+              {isEditingLineup ? 'Update Lineup' : 'Create Lineup'}
             </Button>
           </DialogFooter>
         </DialogContent>

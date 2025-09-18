@@ -40,6 +40,7 @@ export default function MatchSimulation() {
   const [currentEvent, setCurrentEvent] = useState(null);
   const [matchResult, setMatchResult] = useState(null);
   const [currentView, setCurrentView] = useState('commentary'); // 'commentary' or 'scorecard'
+  const [showExitDialog, setShowExitDialog] = useState(false);
   const intervalRef = useRef(null);
   const scrollRef = useRef(null);
 
@@ -56,8 +57,44 @@ export default function MatchSimulation() {
   useEffect(() => {
     if (params.id) {
       fetchMatch();
+      checkForBackgroundMatch();
     }
   }, [params.id]);
+
+  const checkForBackgroundMatch = () => {
+    try {
+      const savedMatch = localStorage.getItem('backgroundMatch');
+      if (savedMatch) {
+        const matchState = JSON.parse(savedMatch);
+        if (matchState.matchId === params.id) {
+          // Restore saved state
+          setCurrentCommentaryIndex(matchState.currentCommentaryIndex);
+          setIsSimulating(matchState.isSimulating);
+          setIsPaused(matchState.isPaused);
+          setSimulationComplete(matchState.simulationComplete);
+          setMatchResult(matchState.matchResult);
+          setCurrentRuns(matchState.currentRuns);
+          setCurrentWickets(matchState.currentWickets);
+          setCurrentOver(matchState.currentOver);
+          setCurrentBall(matchState.currentBall);
+          setTarget(matchState.target);
+          
+          // Clear the background match since we're back
+          localStorage.removeItem('backgroundMatch');
+          
+          // Resume simulation if it was running
+          if (matchState.isSimulating && !matchState.isPaused && !matchState.simulationComplete) {
+            setTimeout(() => {
+              simulateLiveCommentary(matchState.matchResult.commentary.slice(matchState.currentCommentaryIndex));
+            }, 1000);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error restoring background match:', error);
+      localStorage.removeItem('backgroundMatch');
+    }
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -67,9 +104,7 @@ export default function MatchSimulation() {
 
   const fetchMatch = async () => {
     try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000' 
-        : '';
+      const baseUrl = '';
       
       const response = await fetch(`${baseUrl}/api/matches/${params.id}`);
       const matchData = await response.json();
@@ -104,9 +139,7 @@ export default function MatchSimulation() {
     setIsSimulating(true);
     
     try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000' 
-        : '';
+      const baseUrl = '';
       
       const response = await fetch(`${baseUrl}/api/matches/${params.id}/simulate`);
       const result = await response.json();
@@ -148,6 +181,8 @@ export default function MatchSimulation() {
         if (index >= fullCommentary.length) {
           setIsSimulating(false);
           setSimulationComplete(true);
+          // Clear background match since simulation is complete
+          localStorage.removeItem('backgroundMatch');
           toast({
             title: "Match Complete!",
             description: `Final Score: ${matchResult?.homeScore} vs ${matchResult?.awayScore}`,
@@ -199,6 +234,38 @@ export default function MatchSimulation() {
     }
   };
 
+  const handleBackClick = () => {
+    if (isSimulating && !simulationComplete) {
+      setShowExitDialog(true);
+    } else {
+      router.push('/');
+    }
+  };
+
+  const confirmExit = () => {
+    // Save match state to localStorage for background continuation
+    if (isSimulating && matchResult) {
+      const matchState = {
+        matchId: params.id,
+        currentCommentaryIndex,
+        isSimulating,
+        isPaused,
+        simulationComplete,
+        matchResult,
+        currentRuns,
+        currentWickets,
+        currentOver,
+        currentBall,
+        target,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('backgroundMatch', JSON.stringify(matchState));
+    }
+    
+    setShowExitDialog(false);
+    router.push('/');
+  };
+
   const getEventIcon = (comment) => {
     if (comment.isWicket) return <Target className="w-6 h-6 text-red-600" />;
     if (comment.runs === 6) return <Crown className="w-6 h-6 text-purple-600" />;
@@ -234,10 +301,10 @@ export default function MatchSimulation() {
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => router.back()}
+                onClick={handleBackClick}
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
+                Back to Dashboard
               </Button>
               <div>
                 <h1 className="text-xl font-bold">Match Simulation</h1>
@@ -347,10 +414,10 @@ export default function MatchSimulation() {
                     <h3 className="font-semibold text-lg">Match Result</h3>
                     <div className="space-y-2">
                       <div className="text-sm">
-                        <strong>Home:</strong> {matchResult.homeScore} ({matchResult.homeOvers} overs)
+                        <strong>{matchResult.homeTeamName}:</strong> {matchResult.homeScore} ({matchResult.homeOvers} overs)
                       </div>
                       <div className="text-sm">
-                        <strong>Away:</strong> {matchResult.awayScore} ({matchResult.awayOvers} overs)
+                        <strong>{matchResult.awayTeamName}:</strong> {matchResult.awayScore} ({matchResult.awayOvers} overs)
                       </div>
                       {matchResult.winMargin && matchResult.winType && (
                         <div className="text-sm font-medium text-green-600">
@@ -399,7 +466,7 @@ export default function MatchSimulation() {
                       variant={currentView === 'scorecard' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setCurrentView('scorecard')}
-                      disabled={!simulationComplete || !matchResult}
+                      disabled={!matchResult}
                     >
                       <BarChart3 className="w-4 h-4 mr-1" />
                       Scorecard
@@ -490,7 +557,7 @@ export default function MatchSimulation() {
                         <div>
                           <h3 className="font-semibold text-lg mb-3 flex items-center">
                             <Trophy className="w-5 h-5 mr-2" />
-                            First Innings - {matchResult.homeScore}
+                            {matchResult.homeTeamName} - {matchResult.homeScore}
                           </h3>
                           
                           {/* Batting Scorecard */}
@@ -567,7 +634,7 @@ export default function MatchSimulation() {
                         <div>
                           <h3 className="font-semibold text-lg mb-3 flex items-center">
                             <Trophy className="w-5 h-5 mr-2" />
-                            Second Innings - {matchResult.awayScore}
+                            {matchResult.awayTeamName} - {matchResult.awayScore}
                           </h3>
                           
                           {/* Batting Scorecard */}
@@ -653,6 +720,32 @@ export default function MatchSimulation() {
           </div>
         </div>
       </div>
+
+      {/* Exit Confirmation Dialog */}
+      <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exit Match Simulation?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>The match is currently in progress. If you exit:</p>
+            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              <li>The match will continue running in the background</li>
+              <li>You can return to this match from the dashboard</li>
+              <li>Your current position will be saved</li>
+            </ul>
+            <p className="text-sm">Are you sure you want to exit?</p>
+          </div>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={() => setShowExitDialog(false)}>
+              Stay in Match
+            </Button>
+            <Button onClick={confirmExit}>
+              Exit to Dashboard
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Event Popup */}
       <Dialog open={showEventPopup} onOpenChange={setShowEventPopup}>
