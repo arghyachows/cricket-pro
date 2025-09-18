@@ -307,9 +307,66 @@ export async function GET(request, { params }) {
       }
     }
 
+    if (path[0] === 'lineups') {
+      const userId = searchParams.get('userId');
+      
+      if (path[1]) {
+        // Get specific lineup
+        const lineup = await db.collection('lineups').findOne({ id: path[1] });
+        if (!lineup) {
+          return NextResponse.json({ error: 'Lineup not found' }, { status: 404 });
+        }
+        return NextResponse.json(lineup);
+      } else {
+        // Get all lineups for user
+        const lineups = await db.collection('lineups').find({ user_id: userId }).toArray();
+        return NextResponse.json(lineups);
+      }
+    }
+
+    if (path[0] === 'marketplace') {
+      if (path[1] === 'buy' && path[2]) {
+        // Buy a player from marketplace
+        const playerId = path[2];
+        const { buyerId } = await request.json();
+        
+        const player = await db.collection('players').findOne({ id: playerId, is_for_sale: true });
+        if (!player) {
+          return NextResponse.json({ error: 'Player not available' }, { status: 404 });
+        }
+        
+        const buyer = await db.collection('users').findOne({ id: buyerId });
+        if (!buyer || buyer.coins < player.sale_price) {
+          return NextResponse.json({ error: 'Insufficient coins' }, { status: 400 });
+        }
+        
+        // Transfer player and coins
+        await db.collection('players').updateOne(
+          { id: playerId },
+          { $set: { user_id: buyerId, is_for_sale: false, sale_price: 0 } }
+        );
+        
+        await db.collection('users').updateOne(
+          { id: buyerId },
+          { $inc: { coins: -player.sale_price } }
+        );
+        
+        await db.collection('users').updateOne(
+          { id: player.user_id },
+          { $inc: { coins: player.sale_price } }
+        );
+        
+        return NextResponse.json({ message: 'Player purchased successfully' });
+      }
+      
+      // Get marketplace listings
+      const players = await db.collection('players').find({ is_for_sale: true }).toArray();
+      return NextResponse.json(players);
+    }
+
     if (path[0] === 'leagues') {
-      // Get league table
-      const matchType = searchParams.get('type') || 'SOD';
+      // Get league table (T20 only now)
+      const matchType = 'T20';
       
       // Aggregate match results to create league table
       const matches = await db.collection('matches').find({ 
