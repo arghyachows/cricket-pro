@@ -416,48 +416,238 @@ export default function MatchSimulation() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <ScrollArea className="h-[500px] p-4" ref={scrollRef}>
-                  {commentary.length === 0 && !isSimulating && (
-                    <div className="text-center py-12">
-                      <Play className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground">Click "Start Simulation" to begin the match</p>
-                    </div>
-                  )}
-                  
-                  <div className="space-y-3">
-                    {commentary.map((comment, index) => (
-                      <div 
-                        key={index}
-                        className={`p-3 rounded-lg border-l-4 transition-all duration-300 ${getEventColor(comment)}`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="outline" className="text-xs">
-                              {comment.over}.{comment.ball}
-                            </Badge>
-                            {(comment.isWicket || comment.runs === 4 || comment.runs === 6) && 
-                              getEventIcon(comment)
-                            }
+                {currentView === 'commentary' ? (
+                  <ScrollArea className="h-[500px] p-4" ref={scrollRef}>
+                    {commentary.length === 0 && !isSimulating && (
+                      <div className="text-center py-12">
+                        <Play className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">Click "Start Simulation" to begin the match</p>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-3">
+                      {commentary.map((comment, index) => (
+                        <div 
+                          key={index}
+                          className={`p-3 rounded-lg border-l-4 transition-all duration-300 ${getEventColor(comment)}`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="outline" className="text-xs">
+                                {comment.over}.{comment.ball}
+                              </Badge>
+                              {comment.isPowerplay && (
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
+                                  PP
+                                </Badge>
+                              )}
+                              {comment.isDeathOvers && (
+                                <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
+                                  Death
+                                </Badge>
+                              )}
+                              {(comment.isWicket || comment.runs === 4 || comment.runs === 6 || comment.milestone) && 
+                                getEventIcon(comment)
+                              }
+                            </div>
+                            <div className="text-sm font-medium">
+                              {comment.totalRuns}/{comment.wickets}
+                              {comment.currentRunRate && (
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  RR: {comment.currentRunRate.toFixed(1)}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-sm font-medium">
-                            {comment.totalRuns}/{comment.wickets}
+                          
+                          <p className="text-sm mb-2">{comment.commentary}</p>
+                          
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{comment.batsman} facing {comment.bowler}</span>
+                            <div className="flex items-center space-x-2">
+                              {comment.runs > 0 && !comment.isWicket && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {comment.runs} run{comment.runs > 1 ? 's' : ''}
+                                </Badge>
+                              )}
+                              {comment.extras && (
+                                <Badge variant="outline" className="text-xs">
+                                  {comment.extras}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        
-                        <p className="text-sm mb-2">{comment.commentary}</p>
-                        
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>{comment.batsman} facing {comment.bowler}</span>
-                          {comment.runs > 0 && !comment.isWicket && (
-                            <Badge variant="secondary" className="text-xs">
-                              {comment.runs} run{comment.runs > 1 ? 's' : ''}
-                            </Badge>
-                          )}
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  // Scorecard View
+                  <ScrollArea className="h-[500px] p-4">
+                    {matchResult && matchResult.firstInnings && matchResult.secondInnings ? (
+                      <div className="space-y-6">
+                        {/* First Innings */}
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3 flex items-center">
+                            <Trophy className="w-5 h-5 mr-2" />
+                            First Innings - {matchResult.homeScore}
+                          </h3>
+                          
+                          {/* Batting Scorecard */}
+                          <div className="mb-4">
+                            <h4 className="font-medium mb-2">Batting</h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm border">
+                                <thead>
+                                  <tr className="border-b bg-muted/30">
+                                    <th className="text-left p-2">Batsman</th>
+                                    <th className="text-center p-2">R</th>
+                                    <th className="text-center p-2">B</th>
+                                    <th className="text-center p-2">4s</th>
+                                    <th className="text-center p-2">6s</th>
+                                    <th className="text-center p-2">SR</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {matchResult.firstInnings.batsmanScores?.map((batsman, index) => (
+                                    <tr key={index} className="border-b">
+                                      <td className="p-2">
+                                        {batsman.name}
+                                        {batsman.out && (
+                                          <div className="text-xs text-red-600">
+                                            {batsman.outType} b {batsman.bowler}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="text-center p-2 font-medium">{batsman.runs}</td>
+                                      <td className="text-center p-2">{batsman.balls}</td>
+                                      <td className="text-center p-2">{batsman.fours}</td>
+                                      <td className="text-center p-2">{batsman.sixes}</td>
+                                      <td className="text-center p-2">{batsman.strikeRate}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Bowling Figures */}
+                          <div className="mb-4">
+                            <h4 className="font-medium mb-2">Bowling</h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm border">
+                                <thead>
+                                  <tr className="border-b bg-muted/30">
+                                    <th className="text-left p-2">Bowler</th>
+                                    <th className="text-center p-2">O</th>
+                                    <th className="text-center p-2">M</th>
+                                    <th className="text-center p-2">R</th>
+                                    <th className="text-center p-2">W</th>
+                                    <th className="text-center p-2">Econ</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {matchResult.firstInnings.bowlingFigures?.map((bowler, index) => (
+                                    <tr key={index} className="border-b">
+                                      <td className="p-2">{bowler.name}</td>
+                                      <td className="text-center p-2">{bowler.overs}</td>
+                                      <td className="text-center p-2">{bowler.maidens}</td>
+                                      <td className="text-center p-2">{bowler.runs}</td>
+                                      <td className="text-center p-2 font-medium">{bowler.wickets}</td>
+                                      <td className="text-center p-2">{bowler.economy}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Second Innings */}
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3 flex items-center">
+                            <Trophy className="w-5 h-5 mr-2" />
+                            Second Innings - {matchResult.awayScore}
+                          </h3>
+                          
+                          {/* Batting Scorecard */}
+                          <div className="mb-4">
+                            <h4 className="font-medium mb-2">Batting</h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm border">
+                                <thead>
+                                  <tr className="border-b bg-muted/30">
+                                    <th className="text-left p-2">Batsman</th>
+                                    <th className="text-center p-2">R</th>
+                                    <th className="text-center p-2">B</th>
+                                    <th className="text-center p-2">4s</th>
+                                    <th className="text-center p-2">6s</th>
+                                    <th className="text-center p-2">SR</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {matchResult.secondInnings.batsmanScores?.map((batsman, index) => (
+                                    <tr key={index} className="border-b">
+                                      <td className="p-2">
+                                        {batsman.name}
+                                        {batsman.out && (
+                                          <div className="text-xs text-red-600">
+                                            {batsman.outType} b {batsman.bowler}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="text-center p-2 font-medium">{batsman.runs}</td>
+                                      <td className="text-center p-2">{batsman.balls}</td>
+                                      <td className="text-center p-2">{batsman.fours}</td>
+                                      <td className="text-center p-2">{batsman.sixes}</td>
+                                      <td className="text-center p-2">{batsman.strikeRate}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Bowling Figures */}
+                          <div>
+                            <h4 className="font-medium mb-2">Bowling</h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm border">
+                                <thead>
+                                  <tr className="border-b bg-muted/30">
+                                    <th className="text-left p-2">Bowler</th>
+                                    <th className="text-center p-2">O</th>
+                                    <th className="text-center p-2">M</th>
+                                    <th className="text-center p-2">R</th>
+                                    <th className="text-center p-2">W</th>
+                                    <th className="text-center p-2">Econ</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {matchResult.secondInnings.bowlingFigures?.map((bowler, index) => (
+                                    <tr key={index} className="border-b">
+                                      <td className="p-2">{bowler.name}</td>
+                                      <td className="text-center p-2">{bowler.overs}</td>
+                                      <td className="text-center p-2">{bowler.maidens}</td>
+                                      <td className="text-center p-2">{bowler.runs}</td>
+                                      <td className="text-center p-2 font-medium">{bowler.wickets}</td>
+                                      <td className="text-center p-2">{bowler.economy}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+                    ) : (
+                      <div className="text-center py-12">
+                        <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">Scorecard will be available after match simulation</p>
+                      </div>
+                    )}
+                  </ScrollArea>
+                )}
               </CardContent>
             </Card>
           </div>
