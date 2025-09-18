@@ -236,22 +236,22 @@ export async function GET(request, { params }) {
           return NextResponse.json({ error: 'Match not found' }, { status: 404 });
         }
 
-        // Get teams and players
+        // Get teams and players (T20 only now)
         const homeTeam = await db.collection('players').find({ 
           user_id: match.home_team_id,
-          squad_type: match.match_type.includes('Y') ? 'youth' : 'senior'
+          squad_type: 'senior'
         }).limit(11).toArray();
         
         let awayTeam = await db.collection('players').find({ 
           user_id: match.away_team_id,
-          squad_type: match.match_type.includes('Y') ? 'youth' : 'senior'
+          squad_type: 'senior'
         }).limit(11).toArray();
         
         // If away team has no players (demo opponent), generate them
         if (awayTeam.length === 0) {
           awayTeam = [];
           for (let i = 0; i < 11; i++) {
-            const player = generatePlayer(null, match.match_type.includes('Y') ? 'youth' : 'senior');
+            const player = generatePlayer();
             player.user_id = match.away_team_id;
             awayTeam.push(player);
           }
