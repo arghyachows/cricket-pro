@@ -1054,19 +1054,37 @@ export async function POST(request, { params }) {
     if (path[0] === 'matches') {
       const matchId = uuidv4();
       
+      // Random weather and pitch conditions if not specified
+      const weatherOptions = ['Sunny', 'Overcast', 'Partly Cloudy'];
+      const pitchOptions = ['Normal', 'Green', 'Dusty', 'Flat'];
+      
       const match = {
         id: matchId,
         home_team_id: body.home_team_id,
         away_team_id: body.away_team_id,
-        match_type: 'T20', // T20 only now
+        match_type: 'T20',
         scheduled_time: new Date(body.scheduled_time || Date.now()),
-        pitch_type: body.pitch_type || 'Normal',
-        weather: body.weather || 'Sunny',
+        pitch_type: body.pitch_type || pitchOptions[Math.floor(Math.random() * pitchOptions.length)],
+        weather: body.weather || weatherOptions[Math.floor(Math.random() * weatherOptions.length)],
         status: 'scheduled',
         home_score: 0,
         away_score: 0,
+        home_wickets: 0,
+        away_wickets: 0,
+        home_overs: 0,
+        away_overs: 0,
         result: null,
+        win_margin: null,
+        win_type: null,
+        target: null,
         commentary: [],
+        current_innings: null,
+        current_over: 0,
+        current_ball: 0,
+        current_runs: 0,
+        current_wickets: 0,
+        live_commentary: [],
+        match_data: null,
         created_at: new Date()
       };
       
