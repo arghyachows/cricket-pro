@@ -164,7 +164,7 @@ export default function App() {
 
   const simulateMatch = (matchId) => {
     // Navigate to the live match simulation page
-    window.location.href = `/match/${matchId}`;
+    router.push(`/match/${matchId}`);
   };
 
   const createFriendlyMatch = async () => {
