@@ -995,6 +995,76 @@ export default function App() {
                 )}
               </TabsContent>
               
+              {/* Live Matches Tab */}
+              {inProgressMatches.length > 0 && (
+                <TabsContent value="live" className="mt-6">
+                  <div className="space-y-4">
+                    {inProgressMatches.map((match) => (
+                      <Card key={match.id} className="border-l-4 border-l-green-500">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="flex items-center space-x-2">
+                              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                              <span>T20 Match</span>
+                              <Badge variant={match.status === 'paused' ? 'secondary' : 'default'}>
+                                {match.status === 'paused' ? 'PAUSED' : 'LIVE'}
+                              </Badge>
+                            </CardTitle>
+                          </div>
+                          <CardDescription>
+                            {match.weather} • {match.pitch_type} Pitch
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-green-600">
+                                {match.current_runs || 0}/{match.current_wickets || 0}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {match.current_over || 0}.{match.current_ball || 0} overs
+                              </div>
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              {match.current_runs && match.current_over && (
+                                <div className="flex justify-between">
+                                  <span>Run Rate:</span>
+                                  <span className="font-medium">
+                                    {((match.current_runs / ((match.current_over * 6 + match.current_ball) / 6)) || 0).toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex justify-between">
+                                <span>Status:</span>
+                                <span className="font-medium">
+                                  Innings {match.current_innings || 1}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex space-x-2">
+                            <Button 
+                              onClick={() => simulateMatch(match.id)}
+                              className="flex-1"
+                              disabled={loading}
+                            >
+                              {match.status === 'paused' ? 'Resume Match' : 'Continue Watching'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => router.push(`/match/${match.id}`)}
+                            >
+                              View Details
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </TabsContent>
+              )}
+              
               <TabsContent value="completed" className="mt-6">
                 {completedMatches.length === 0 ? (
                   <Card>
