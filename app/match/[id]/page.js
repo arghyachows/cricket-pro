@@ -280,6 +280,14 @@ export default function MatchSimulation() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Match Conditions */}
+                <div className="flex justify-between items-center text-xs p-2 bg-muted/30 rounded">
+                  <span>{match.weather}</span>
+                  <span>•</span>
+                  <span>{match.pitch_type} Pitch</span>
+                </div>
+
+                {/* Current Score */}
                 <div className="text-center">
                   <div className="text-3xl font-bold text-green-600">
                     {currentRuns}/{currentWickets}
@@ -289,6 +297,37 @@ export default function MatchSimulation() {
                   </div>
                 </div>
                 
+                {/* Run Rates */}
+                {(currentRunRate > 0 || requiredRunRate) && (
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="text-center p-2 bg-blue-50 rounded">
+                      <div className="font-semibold text-blue-600">{currentRunRate.toFixed(2)}</div>
+                      <div className="text-xs text-blue-500">Current RR</div>
+                    </div>
+                    {requiredRunRate && (
+                      <div className="text-center p-2 bg-orange-50 rounded">
+                        <div className={`font-semibold ${requiredRunRate > currentRunRate + 2 ? 'text-red-600' : 'text-orange-600'}`}>
+                          {requiredRunRate.toFixed(2)}
+                        </div>
+                        <div className="text-xs text-orange-500">Required RR</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Target Information */}
+                {target && ballsLeft && (
+                  <div className="text-center p-2 bg-gray-50 rounded text-sm">
+                    <div className="font-medium">
+                      Need {Math.max(0, target - currentRuns)} runs from {ballsLeft} balls
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Target: {target}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Match Progress */}
                 {isSimulating && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
@@ -302,16 +341,22 @@ export default function MatchSimulation() {
                   </div>
                 )}
                 
+                {/* Final Result */}
                 {simulationComplete && matchResult && (
                   <div className="space-y-2 text-center pt-4 border-t">
                     <h3 className="font-semibold text-lg">Match Result</h3>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <div className="text-sm">
-                        <strong>Home:</strong> {matchResult.homeScore}
+                        <strong>Home:</strong> {matchResult.homeScore} ({matchResult.homeOvers} overs)
                       </div>
                       <div className="text-sm">
-                        <strong>Away:</strong> {matchResult.awayScore}
+                        <strong>Away:</strong> {matchResult.awayScore} ({matchResult.awayOvers} overs)
                       </div>
+                      {matchResult.winMargin && matchResult.winType && (
+                        <div className="text-sm font-medium text-green-600">
+                          Won by {matchResult.winMargin} {matchResult.winType}
+                        </div>
+                      )}
                     </div>
                     <Badge variant="default" className="mt-2">
                       Match Complete
