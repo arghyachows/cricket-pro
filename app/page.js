@@ -1064,6 +1064,8 @@ export default function App() {
                           <th className="text-center p-2">T</th>
                           <th className="text-center p-2">Pts</th>
                           <th className="text-center p-2">NRR</th>
+                          <th className="text-center p-2">Avg</th>
+                          <th className="text-center p-2">Form</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1074,15 +1076,40 @@ export default function App() {
                           >
                             <td className="p-2">{index + 1}</td>
                             <td className="p-2">
-                              {team.name}
-                              {team.id === user.id && <Badge variant="outline" className="ml-2">You</Badge>}
+                              <div>
+                                {team.name}
+                                {team.id === user.id && <Badge variant="outline" className="ml-2">You</Badge>}
+                              </div>
+                              {team.highestScore > 0 && (
+                                <div className="text-xs text-muted-foreground">
+                                  Best: {team.highestScore} • Worst: {team.lowestScore}
+                                </div>
+                              )}
                             </td>
                             <td className="text-center p-2">{team.played}</td>
                             <td className="text-center p-2">{team.won}</td>
                             <td className="text-center p-2">{team.lost}</td>
                             <td className="text-center p-2">{team.tied}</td>
                             <td className="text-center p-2 font-semibold">{team.points}</td>
-                            <td className="text-center p-2">{team.runRate}</td>
+                            <td className="text-center p-2">
+                              <span className={team.netRunRate > 0 ? 'text-green-600' : team.netRunRate < 0 ? 'text-red-600' : ''}>
+                                {team.netRunRate}
+                              </span>
+                            </td>
+                            <td className="text-center p-2">{team.averageScore}</td>
+                            <td className="text-center p-2">
+                              <div className="flex justify-center space-x-1">
+                                {(team.form || []).slice(0, 5).map((result, idx) => (
+                                  <Badge 
+                                    key={idx} 
+                                    variant={result === 'W' ? 'default' : result === 'L' ? 'destructive' : 'secondary'}
+                                    className="w-5 h-5 text-xs p-0 flex items-center justify-center"
+                                  >
+                                    {result}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
