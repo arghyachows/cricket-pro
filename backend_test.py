@@ -154,7 +154,7 @@ class T20BackendTester:
         
         # Test pause match
         time.sleep(1)  # Brief delay
-        response = self.make_request("POST", f"/matches/{self.match_id}/pause")
+        response = self.make_request("POST", f"/matches/{self.match_id}/pause", {})
         if response and response.status_code == 200:
             self.log_test("Match Pause", True, "Match paused successfully")
         else:
@@ -162,7 +162,7 @@ class T20BackendTester:
         
         # Test resume match
         time.sleep(1)  # Brief delay
-        response = self.make_request("POST", f"/matches/{self.match_id}/resume")
+        response = self.make_request("POST", f"/matches/{self.match_id}/resume", {})
         if response and response.status_code == 200:
             self.log_test("Match Resume", True, "Match resumed successfully")
         else:
