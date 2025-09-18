@@ -574,20 +574,51 @@ export async function GET(request, { params }) {
           }
         }
 
-        // Simulate T20 innings (20 overs each)
-        const firstInnings = simulateInnings(homeTeam, awayTeam, 20, 'T20');
-        const secondInnings = simulateInnings(awayTeam, homeTeam, 20, 'T20');
+        // Match conditions
+        const matchConditions = {
+          weather: match.weather || 'Sunny',
+          pitchType: match.pitch_type || 'Normal'
+        };
+
+        // Simulate first innings
+        const firstInnings = simulateInnings(homeTeam, awayTeam, null, matchConditions, false);
+        
+        // Simulate second innings with target
+        const target = firstInnings.runs + 1;
+        const secondInnings = simulateInnings(awayTeam, homeTeam, target, matchConditions, true);
+
+        // Determine winner
+        let winner, winMargin, winType;
+        if (secondInnings.runs > firstInnings.runs) {
+          winner = match.away_team_id;
+          winMargin = 10 - secondInnings.wickets;
+          winType = 'wickets';
+        } else if (firstInnings.runs > secondInnings.runs) {
+          winner = match.home_team_id;
+          winMargin = firstInnings.runs - secondInnings.runs;
+          winType = 'runs';
+        } else {
+          winner = 'tie';
+          winMargin = 0;
+          winType = 'tie';
+        }
 
         const result = {
           homeScore: `${firstInnings.runs}/${firstInnings.wickets}`,
           awayScore: `${secondInnings.runs}/${secondInnings.wickets}`,
-          winner: firstInnings.runs > secondInnings.runs ? match.home_team_id : match.away_team_id,
+          homeOvers: firstInnings.overs,
+          awayOvers: secondInnings.overs,
+          winner,
+          winMargin,
+          winType,
+          target,
           commentary: [...firstInnings.commentary, ...secondInnings.commentary],
           firstInnings,
-          secondInnings
+          secondInnings,
+          matchConditions
         };
 
-        // Update match with result
+        // Update match with complete result
         await db.collection('matches').updateOne(
           { id: path[1] },
           { 
@@ -595,13 +626,90 @@ export async function GET(request, { params }) {
               status: 'completed',
               home_score: firstInnings.runs,
               away_score: secondInnings.runs,
-              result: result.winner,
-              commentary: result.commentary
+              home_overs: firstInnings.overs,
+              away_overs: secondInnings.overs,
+              home_wickets: firstInnings.wickets,
+              away_wickets: secondInnings.wickets,
+              result: winner,
+              win_margin: winMargin,
+              win_type: winType,
+              target: target,
+              commentary: result.commentary,
+              match_data: {
+                firstInnings: {
+                  runs: firstInnings.runs,
+                  wickets: firstInnings.wickets,
+                  overs: firstInnings.overs,
+                  runRate: firstInnings.runRate,
+                  batsmanScores: firstInnings.batsmanScores,
+                  bowlingFigures: firstInnings.bowlingFigures,
+                  partnerships: firstInnings.partnerships,
+                  fallOfWickets: firstInnings.fallOfWickets
+                },
+                secondInnings: {
+                  runs: secondInnings.runs,
+                  wickets: secondInnings.wickets,
+                  overs: secondInnings.overs,
+                  runRate: secondInnings.runRate,
+                  batsmanScores: secondInnings.batsmanScores,
+                  bowlingFigures: secondInnings.bowlingFigures,
+                  partnerships: secondInnings.partnerships,
+                  fallOfWickets: secondInnings.fallOfWickets
+                }
+              },
+              completed_at: new Date()
             }
           }
         );
 
         return NextResponse.json(result);
+      }
+
+      if (path[1] && path[2] === 'start') {
+        // Start live match simulation
+        const match = await db.collection('matches').findOne({ id: path[1] });
+        if (!match) {
+          return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+        }
+
+        // Update match status to in-progress
+        await db.collection('matches').updateOne(
+          { id: path[1] },
+          { 
+            $set: { 
+              status: 'in-progress',
+              current_innings: 1,
+              current_over: 0,
+              current_ball: 0,
+              current_runs: 0,
+              current_wickets: 0,
+              live_commentary: [],
+              started_at: new Date()
+            }
+          }
+        );
+
+        return NextResponse.json({ message: 'Match started successfully', matchId: path[1] });
+      }
+
+      if (path[1] && path[2] === 'pause') {
+        // Pause live match
+        await db.collection('matches').updateOne(
+          { id: path[1] },
+          { $set: { status: 'paused', paused_at: new Date() } }
+        );
+
+        return NextResponse.json({ message: 'Match paused successfully' });
+      }
+
+      if (path[1] && path[2] === 'resume') {
+        // Resume paused match
+        await db.collection('matches').updateOne(
+          { id: path[1] },
+          { $set: { status: 'in-progress', resumed_at: new Date() } }
+        );
+
+        return NextResponse.json({ message: 'Match resumed successfully' });
       }
       
       if (path[1]) {
