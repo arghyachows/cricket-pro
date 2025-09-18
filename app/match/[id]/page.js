@@ -113,6 +113,7 @@ export default function MatchSimulation() {
       
       if (response.ok) {
         setMatchResult(result);
+        setTarget(result.target);
         
         // Start live commentary simulation
         if (result.commentary && result.commentary.length > 0) {
