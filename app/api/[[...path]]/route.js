@@ -13,8 +13,8 @@ async function getDatabase() {
 }
 
 // Helper function to generate player with realistic skills
-function generatePlayer(age = null, squad_type = 'senior') {
-  const ages = squad_type === 'senior' ? [21, 22, 23, 24, 25, 26, 27, 28, 29, 30] : [16, 17, 18, 19, 20];
+function generatePlayer(age = null) {
+  const ages = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
   const playerAge = age || ages[Math.floor(Math.random() * ages.length)];
   
   // Skill levels mapping
