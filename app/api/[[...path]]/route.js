@@ -441,7 +441,8 @@ export async function POST(request, { params }) {
           nationality,
           created_at: new Date(),
           last_login: new Date(),
-          membership_type: 'free'
+          membership_type: 'free',
+          coins: 50000 // Starting virtual currency
         };
         
         await db.collection('users').insertOne(user);
