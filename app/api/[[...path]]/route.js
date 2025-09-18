@@ -558,6 +558,68 @@ export async function POST(request, { params }) {
       return NextResponse.json(player, { status: 201 });
     }
 
+    if (path[0] === 'lineups') {
+      const lineupId = uuidv4();
+      
+      const lineup = {
+        id: lineupId,
+        user_id: body.user_id,
+        name: body.name,
+        players: body.players, // Array of 11 player IDs
+        captain_id: body.captain_id,
+        wicketkeeper_id: body.wicketkeeper_id,
+        first_bowler_id: body.first_bowler_id,
+        second_bowler_id: body.second_bowler_id,
+        is_main: body.is_main || false,
+        created_at: new Date()
+      };
+      
+      // If this is set as main lineup, unset others
+      if (lineup.is_main) {
+        await db.collection('lineups').updateMany(
+          { user_id: body.user_id },
+          { $set: { is_main: false } }
+        );
+      }
+      
+      await db.collection('lineups').insertOne(lineup);
+      return NextResponse.json(lineup, { status: 201 });
+    }
+
+    if (path[0] === 'marketplace') {
+      if (path[1] === 'list') {
+        // List a player for sale
+        const { player_id, sale_price } = body;
+        
+        const result = await db.collection('players').updateOne(
+          { id: player_id },
+          { $set: { is_for_sale: true, sale_price: sale_price } }
+        );
+        
+        if (result.matchedCount === 0) {
+          return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+        }
+        
+        return NextResponse.json({ message: 'Player listed for sale' });
+      }
+      
+      if (path[1] === 'unlist') {
+        // Remove player from sale
+        const { player_id } = body;
+        
+        const result = await db.collection('players').updateOne(
+          { id: player_id },
+          { $set: { is_for_sale: false, sale_price: 0 } }
+        );
+        
+        if (result.matchedCount === 0) {
+          return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+        }
+        
+        return NextResponse.json({ message: 'Player removed from sale' });
+      }
+    }
+
     if (path[0] === 'matches') {
       const matchId = uuidv4();
       
@@ -565,7 +627,7 @@ export async function POST(request, { params }) {
         id: matchId,
         home_team_id: body.home_team_id,
         away_team_id: body.away_team_id,
-        match_type: body.match_type || 'SOD',
+        match_type: 'T20', // T20 only now
         scheduled_time: new Date(body.scheduled_time || Date.now()),
         pitch_type: body.pitch_type || 'Normal',
         weather: body.weather || 'Sunny',
