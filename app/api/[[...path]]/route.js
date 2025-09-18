@@ -720,14 +720,20 @@ export async function GET(request, { params }) {
         }
         return NextResponse.json(match);
       } else {
-        // Get all matches
+        // Get all matches with enhanced filtering
         const userId = searchParams.get('userId');
+        const status = searchParams.get('status');
         let filter = {};
+        
         if (userId) {
           filter = { $or: [{ home_team_id: userId }, { away_team_id: userId }] };
         }
         
-        const matches = await db.collection('matches').find(filter).toArray();
+        if (status) {
+          filter.status = status;
+        }
+        
+        const matches = await db.collection('matches').find(filter).sort({ created_at: -1 }).toArray();
         return NextResponse.json(matches);
       }
     }
