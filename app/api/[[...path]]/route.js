@@ -2,6 +2,166 @@ import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { generatePlayerName } from '@/lib/playerNames';
 import { getDatabase } from '@/lib/mongodb';
+import WebSocket from 'ws';
+import { WebSocketServer } from 'ws';
+
+// Global WebSocket server instance
+let wss;
+const activeStreams = new Map();
+
+// Initialize WebSocket server for live match updates
+function initializeWebSocketServer() {
+  if (!wss) {
+    wss = new WebSocketServer({ port: 8080 });
+
+    wss.on('connection', (ws, request) => {
+      const url = new URL(request.url, 'http://localhost:8080');
+      const matchId = url.searchParams.get('matchId');
+
+      if (matchId) {
+        console.log(`Client connected for match: ${matchId}`);
+        ws.matchId = matchId;
+
+        // Send initial match state
+        sendInitialMatchState(ws, matchId);
+
+        // Set up MongoDB change stream for this match
+        setupMatchChangeStream(matchId);
+      }
+
+      ws.on('message', (message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          handleWebSocketMessage(ws, data);
+        } catch (error) {
+          console.error('WebSocket message error:', error);
+        }
+      });
+
+      ws.on('close', () => {
+        console.log(`Client disconnected from match: ${matchId}`);
+      });
+
+      ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+      });
+    });
+
+    console.log('WebSocket server initialized on port 8080');
+  }
+}
+
+// Set up MongoDB change stream for live match updates
+async function setupMatchChangeStream(matchId) {
+  if (activeStreams.has(matchId)) {
+    return; // Stream already exists
+  }
+
+  try {
+    const db = await getDatabase();
+
+    // Pipeline to filter relevant match events
+    const pipeline = [
+      {
+        $match: {
+          'fullDocument.matchId': matchId,
+          'operationType': { $in: ['insert', 'update', 'replace'] }
+        }
+      },
+      {
+        $project: {
+          operationType: 1,
+          fullDocument: 1,
+          updateDescription: 1,
+          documentKey: 1
+        }
+      }
+    ];
+
+    const changeStream = db.collection('live_matches').watch(pipeline, {
+      fullDocument: 'updateLookup'
+    });
+
+    activeStreams.set(matchId, changeStream);
+
+    changeStream.on('change', (change) => {
+      broadcastMatchUpdate(matchId, change);
+    });
+
+    changeStream.on('error', (error) => {
+      console.error(`Change stream error for match ${matchId}:`, error);
+      activeStreams.delete(matchId);
+      // Attempt to restart stream after delay
+      setTimeout(() => setupMatchChangeStream(matchId), 5000);
+    });
+
+    console.log(`Change stream set up for match: ${matchId}`);
+  } catch (error) {
+    console.error(`Failed to set up change stream for match ${matchId}:`, error);
+  }
+}
+
+// Broadcast match updates to connected WebSocket clients
+function broadcastMatchUpdate(matchId, changeEvent) {
+  if (!wss) return;
+
+  const updateData = {
+    type: 'match_update',
+    matchId: matchId,
+    operationType: changeEvent.operationType,
+    data: changeEvent.fullDocument,
+    updateDescription: changeEvent.updateDescription,
+    timestamp: new Date()
+  };
+
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN && client.matchId === matchId) {
+      client.send(JSON.stringify(updateData));
+    }
+  });
+}
+
+// Send initial match state to newly connected client
+async function sendInitialMatchState(ws, matchId) {
+  try {
+    const db = await getDatabase();
+    const match = await db.collection('matches').findOne({ id: matchId });
+
+    if (match) {
+      const initialData = {
+        type: 'initial_state',
+        matchId: matchId,
+        data: match,
+        timestamp: new Date()
+      };
+      ws.send(JSON.stringify(initialData));
+    }
+  } catch (error) {
+    console.error('Error sending initial match state:', error);
+  }
+}
+
+// Handle incoming WebSocket messages
+function handleWebSocketMessage(ws, data) {
+  switch (data.type) {
+    case 'subscribe':
+      ws.matchId = data.matchId;
+      console.log(`Client subscribed to match: ${data.matchId}`);
+      break;
+    case 'unsubscribe':
+      ws.matchId = null;
+      console.log('Client unsubscribed from match');
+      break;
+    default:
+      console.log('Unknown WebSocket message type:', data.type);
+  }
+}
+
+// Initialize WebSocket server when module loads
+if (typeof window === 'undefined') {
+  // Only initialize on server side
+  initializeWebSocketServer();
+}
 
 // Helper function to generate player with realistic skills
 function generatePlayer(age = null, userId = null, playerIndex = 0) {

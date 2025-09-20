@@ -25,7 +25,9 @@ import {
   Users,
   TrendingUp,
   Layers,
-  Coins
+  Coins,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
 export default function MatchSimulation() {
@@ -44,8 +46,11 @@ export default function MatchSimulation() {
   const [matchResult, setMatchResult] = useState(null);
   const [currentView, setCurrentView] = useState('commentary'); // 'commentary' or 'scorecard'
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const intervalRef = useRef(null);
   const scrollRef = useRef(null);
+  const wsRef = useRef(null);
 
   // Current match state
   const [currentRuns, setCurrentRuns] = useState(0);
@@ -76,11 +81,19 @@ export default function MatchSimulation() {
     checkAuth();
   }, [router]);
 
+  // WebSocket connection setup
   useEffect(() => {
     if (params.id && user) {
       fetchMatch();
       checkForBackgroundMatch();
+      connectWebSocket();
     }
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
   }, [params.id, user]);
 
   const checkForBackgroundMatch = () => {
@@ -89,27 +102,30 @@ export default function MatchSimulation() {
       if (savedMatch) {
         const matchState = JSON.parse(savedMatch);
         if (matchState.matchId === params.id) {
-          // Restore saved state
-          setCurrentCommentaryIndex(matchState.currentCommentaryIndex);
-          setIsSimulating(matchState.isSimulating);
-          setIsPaused(matchState.isPaused);
-          setSimulationComplete(matchState.simulationComplete);
-          setMatchResult(matchState.matchResult);
-          setCurrentRuns(matchState.currentRuns);
-          setCurrentWickets(matchState.currentWickets);
-          setCurrentOver(matchState.currentOver);
-          setCurrentBall(matchState.currentBall);
-          setTarget(matchState.target);
-          
-          // Clear the background match since we're back
-          localStorage.removeItem('backgroundMatch');
-          
-          // Resume simulation if it was running
-          if (matchState.isSimulating && !matchState.isPaused && !matchState.simulationComplete) {
-            setTimeout(() => {
-              simulateLiveCommentary(matchState.matchResult.commentary.slice(matchState.currentCommentaryIndex));
-            }, 1000);
+          // Only restore if match is not completed
+          if (!matchState.simulationComplete) {
+            // Restore saved state
+            setCurrentCommentaryIndex(matchState.currentCommentaryIndex);
+            setIsSimulating(matchState.isSimulating);
+            setIsPaused(matchState.isPaused);
+            setSimulationComplete(matchState.simulationComplete);
+            setMatchResult(matchState.matchResult);
+            setCurrentRuns(matchState.currentRuns);
+            setCurrentWickets(matchState.currentWickets);
+            setCurrentOver(matchState.currentOver);
+            setCurrentBall(matchState.currentBall);
+            setTarget(matchState.target);
+
+            // Resume simulation if it was running
+            if (matchState.isSimulating && !matchState.isPaused && !matchState.simulationComplete) {
+              setTimeout(() => {
+                simulateLiveCommentary(matchState.matchResult.commentary.slice(matchState.currentCommentaryIndex));
+              }, 1000);
+            }
           }
+
+          // Always clear the background match since we're now viewing it
+          localStorage.removeItem('backgroundMatch');
         }
       }
     } catch (error) {
@@ -120,7 +136,8 @@ export default function MatchSimulation() {
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      // Keep scroll at top to show most recent commentary first
+      scrollRef.current.scrollTop = 0;
     }
   }, [commentary]);
 
@@ -224,8 +241,8 @@ export default function MatchSimulation() {
       setRequiredRunRate(comment.requiredRunRate);
       setBallsLeft(comment.ballsLeft);
       
-      // Add comment to display
-      setCommentary(prev => [...prev, comment]);
+      // Add comment to display (most recent at top)
+      setCommentary(prev => [comment, ...prev]);
       setCurrentCommentaryIndex(index + 1);
       
       // Show special event popup
@@ -295,6 +312,113 @@ export default function MatchSimulation() {
     return <Trophy className="w-6 h-6 text-green-500 dark:text-green-400" />;
   };
 
+  // WebSocket connection for live updates
+  const connectWebSocket = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      return; // Already connected
+    }
+
+    try {
+      const wsUrl = `ws://localhost:8080?matchId=${params.id}`;
+      wsRef.current = new WebSocket(wsUrl);
+
+      wsRef.current.onopen = () => {
+        console.log('WebSocket connected for match:', params.id);
+        setIsConnected(true);
+        setConnectionStatus('connected');
+
+        // Send subscription message
+        wsRef.current.send(JSON.stringify({
+          type: 'subscribe',
+          matchId: params.id
+        }));
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleWebSocketMessage(data);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+
+      wsRef.current.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        setConnectionStatus('disconnected');
+
+        // Attempt to reconnect after 5 seconds
+        setTimeout(() => {
+          if (params.id && user) {
+            connectWebSocket();
+          }
+        }, 5000);
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setConnectionStatus('error');
+      };
+
+    } catch (error) {
+      console.error('Failed to connect WebSocket:', error);
+      setConnectionStatus('error');
+    }
+  };
+
+  // Handle incoming WebSocket messages
+  const handleWebSocketMessage = (data) => {
+    switch (data.type) {
+      case 'initial_state':
+        console.log('Received initial match state:', data.data);
+        if (data.data && !match) {
+          setMatch(data.data);
+          if (data.data.status === 'completed') {
+            setSimulationComplete(true);
+            setCommentary(data.data.commentary || []);
+            setCurrentCommentaryIndex(data.data.commentary?.length || 0);
+          }
+        }
+        break;
+
+      case 'match_update':
+        console.log('Received match update:', data);
+        // Handle real-time match updates here
+        // This would be triggered by MongoDB change streams
+        if (data.operationType === 'update' && data.data) {
+          // Update match state in real-time
+          setMatch(prevMatch => ({
+            ...prevMatch,
+            ...data.data
+          }));
+
+          // Update current match statistics
+          if (data.data.current_runs !== undefined) {
+            setCurrentRuns(data.data.current_runs);
+          }
+          if (data.data.current_wickets !== undefined) {
+            setCurrentWickets(data.data.current_wickets);
+          }
+          if (data.data.current_over !== undefined) {
+            setCurrentOver(data.data.current_over);
+          }
+          if (data.data.current_ball !== undefined) {
+            setCurrentBall(data.data.current_ball);
+          }
+
+          // Update commentary if new commentary is available
+          if (data.data.live_commentary && Array.isArray(data.data.live_commentary)) {
+            setCommentary(data.data.live_commentary);
+          }
+        }
+        break;
+
+      default:
+        console.log('Unknown WebSocket message type:', data.type);
+    }
+  };
+
   const getEventColor = (comment) => {
     if (comment.isWicket) return 'bg-destructive/10 border-destructive/20 dark:bg-destructive/20 dark:border-destructive/30';
     if (comment.runs === 6) return 'bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-700';
@@ -316,24 +440,38 @@ export default function MatchSimulation() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
-        <div className="container mx-auto px-4 py-4">
+      <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50 sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Trophy className="w-8 h-8 text-primary" />
-              <div>
-                <h1 className="text-xl font-bold">Cricket Manager Pro</h1>
-                <p className="text-sm text-muted-foreground">Match Simulation</p>
+              <Trophy className="w-6 h-6 md:w-8 md:h-8 text-primary" />
+              <div className="min-w-0">
+                <h1 className="text-lg md:text-xl font-bold truncate">Cricket Manager Pro</h1>
+                <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Match Simulation</p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <Badge variant="outline" className="flex items-center space-x-1">
-                <Coins className="w-4 h-4" />
-                <span>{user?.coins?.toLocaleString() || '0'} coins</span>
+            <div className="flex items-center space-x-2 md:space-x-4">
+              <Badge
+                variant="outline"
+                className={`flex items-center space-x-1 text-xs md:text-sm ${
+                  isConnected ? 'border-green-500 text-green-700 dark:text-green-400' :
+                  connectionStatus === 'error' ? 'border-red-500 text-red-700 dark:text-red-400' :
+                  'border-yellow-500 text-yellow-700 dark:text-yellow-400'
+                }`}
+              >
+                {isConnected ? <Wifi className="w-3 h-3 md:w-4 md:h-4" /> : <WifiOff className="w-3 h-3 md:w-4 md:h-4" />}
+                <span className="hidden sm:inline">
+                  {isConnected ? 'Live' : connectionStatus === 'error' ? 'Offline' : 'Connecting'}
+                </span>
               </Badge>
-              <Badge variant="outline" className="flex items-center space-x-1">
-                <span>{user?.country || 'Country'}</span>
+              <Badge variant="outline" className="flex items-center space-x-1 text-xs md:text-sm">
+                <Coins className="w-3 h-3 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">{user?.coins?.toLocaleString() || '0'} coins</span>
+                <span className="sm:hidden">{(user?.coins || 0).toLocaleString()}</span>
+              </Badge>
+              <Badge variant="outline" className="flex items-center space-x-1 text-xs md:text-sm">
+                <span className="truncate max-w-[60px] md:max-w-none">{user?.country || 'Country'}</span>
               </Badge>
             </div>
           </div>
@@ -343,45 +481,50 @@ export default function MatchSimulation() {
       {/* Navigation */}
       <nav className="border-b bg-muted/30">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleBackClick}
+                className="self-start"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
+                <span className="hidden sm:inline">Back to Dashboard</span>
+                <span className="sm:hidden">Back</span>
               </Button>
-              <div>
-                <h2 className="text-2xl font-bold">{match.match_type} Match Simulation</h2>
-                <p className="text-sm text-muted-foreground">
+              <div className="min-w-0">
+                <h2 className="text-xl md:text-2xl font-bold truncate">{match.match_type} Match Simulation</h2>
+                <p className="text-xs md:text-sm text-muted-foreground">
                   {match.weather} • {match.pitch_type} Pitch • {match.status}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Navigation
-                user={user}
-                onLogout={() => {
-                  localStorage.removeItem('user');
-                  router.push('/');
-                }}
-              />
-              {isSimulating && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={togglePause}
-                >
-                  {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-                  {isPaused ? 'Resume' : 'Pause'}
-                </Button>
-              )}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-x-2">
+              <div className="flex items-center gap-2">
+                <Navigation
+                  user={user}
+                  onLogout={() => {
+                    localStorage.removeItem('user');
+                    router.push('/');
+                  }}
+                />
+                {isSimulating && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={togglePause}
+                    className="whitespace-nowrap"
+                  >
+                    {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                    <span className="hidden sm:inline ml-2">{isPaused ? 'Resume' : 'Pause'}</span>
+                  </Button>
+                )}
+              </div>
 
               {!isSimulating && !simulationComplete && (
-                <Button onClick={startSimulation}>
+                <Button onClick={startSimulation} className="self-start sm:self-auto">
                   <Play className="w-4 h-4 mr-2" />
                   Start Simulation
                 </Button>
@@ -399,7 +542,7 @@ export default function MatchSimulation() {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Trophy className="w-5 h-5" />
-                  <span>Live Score</span>
+                  <span>{simulationComplete ? 'Final Score' : 'Live Score'}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -410,81 +553,153 @@ export default function MatchSimulation() {
                   <span>{match.pitch_type} Pitch</span>
                 </div>
 
-                {/* Current Score */}
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-primary">
-                    {currentRuns}/{currentWickets}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {currentOver > 0 && `${currentOver}.${currentBall} overs`}
-                  </div>
-                </div>
+                {/* Show different content for completed vs live matches */}
+                {simulationComplete ? (
+                  /* Final Result for Completed Matches */
+                  <div className="space-y-4">
+                    {/* First Innings Score */}
+                    <div className="text-center p-3 bg-muted/30 rounded-lg border">
+                      <div className="text-2xl font-bold text-primary mb-1">
+                        {match.home_score || match.match_data?.firstInnings?.runs || 0}/{match.home_wickets || match.match_data?.firstInnings?.wickets || 10}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {match.home_overs || match.match_data?.firstInnings?.overs || 0} overs
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {user?.team_name || 'Home Team'}
+                      </div>
+                    </div>
 
-                {/* Run Rates */}
-                {(currentRunRate > 0 || requiredRunRate) && (
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-center p-2 bg-muted/30 rounded border">
-                      <div className="font-semibold text-foreground">{currentRunRate.toFixed(2)}</div>
-                      <div className="text-xs text-muted-foreground">Current RR</div>
-                    </div>
-                    {requiredRunRate && (
-                      <div className="text-center p-2 bg-muted/30 rounded border">
-                        <div className={`font-semibold ${requiredRunRate > currentRunRate + 2 ? 'text-destructive' : 'text-orange-600 dark:text-orange-400'}`}>
-                          {requiredRunRate.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Required RR</div>
+                    {/* Second Innings Score */}
+                    <div className="text-center p-3 bg-muted/30 rounded-lg border">
+                      <div className="text-2xl font-bold text-primary mb-1">
+                        {match.away_score || match.match_data?.secondInnings?.runs || 0}/{match.away_wickets || match.match_data?.secondInnings?.wickets || 10}
                       </div>
-                    )}
-                  </div>
-                )}
+                      <div className="text-sm text-muted-foreground">
+                        {match.away_overs || match.match_data?.secondInnings?.overs || 0} overs
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Opponent
+                      </div>
+                    </div>
 
-                {/* Target Information */}
-                {target && ballsLeft && (
-                  <div className="text-center p-2 bg-muted/30 rounded border text-sm">
-                    <div className="font-medium">
-                      Need {Math.max(0, target - currentRuns)} runs from {ballsLeft} balls
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Target: {target}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Match Progress */}
-                {isSimulating && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Match Progress</span>
-                      <span>{commentary.length} balls</span>
-                    </div>
-                    <Progress 
-                      value={(commentary.length / (matchResult?.commentary?.length || 1)) * 100} 
-                      className="h-2"
-                    />
-                  </div>
-                )}
-                
-                {/* Final Result */}
-                {simulationComplete && matchResult && (
-                  <div className="space-y-2 text-center pt-4 border-t">
-                    <h3 className="font-semibold text-lg">Match Result</h3>
-                    <div className="space-y-2">
-                      <div className="text-sm">
-                        <strong>{matchResult.homeTeamName}:</strong> {matchResult.homeScore} ({matchResult.homeOvers} overs)
+                    {/* Match Result Summary */}
+                    <div className="text-center p-3 bg-primary/5 rounded-lg border border-primary/20">
+                      <div className="text-sm font-medium text-primary mb-1">
+                        {match.result === user?.id ? '🏆 Won' : match.result && match.result !== 'tie' ? '❌ Lost' : '🤝 Tie'}
                       </div>
-                      <div className="text-sm">
-                        <strong>{matchResult.awayTeamName}:</strong> {matchResult.awayScore} ({matchResult.awayOvers} overs)
-                      </div>
-                      {matchResult.winMargin && matchResult.winType && (
-                        <div className="text-sm font-medium text-primary">
-                          Won by {matchResult.winMargin} {matchResult.winType}
+                      {match.win_margin && match.win_type && (
+                        <div className="text-xs text-muted-foreground">
+                          by {match.win_margin} {match.win_type}
                         </div>
                       )}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Completed {match.completed_at ? new Date(match.completed_at).toLocaleDateString() : 'Recently'}
+                      </div>
                     </div>
-                    <Badge variant="default" className="mt-2">
-                      Match Complete
-                    </Badge>
+
+                    {/* Match Statistics */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Overs:</span>
+                        <span className="font-medium">
+                          {(match.home_overs || 0) + (match.away_overs || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Wickets:</span>
+                        <span className="font-medium">
+                          {(match.home_wickets || 0) + (match.away_wickets || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Avg Run Rate:</span>
+                        <span className="font-medium">
+                          {(((match.home_score || 0) + (match.away_score || 0)) / ((match.home_overs || 0) + (match.away_overs || 0))).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
+                ) : (
+                  /* Live Score for Ongoing Matches */
+                  <>
+                    {/* Current Score */}
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-primary">
+                        {currentRuns}/{currentWickets}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {currentOver > 0 && `${currentOver}.${currentBall} overs`}
+                      </div>
+                    </div>
+
+                    {/* Run Rates */}
+                    {(currentRunRate > 0 || requiredRunRate) && (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="text-center p-2 bg-muted/30 rounded border">
+                          <div className="font-semibold text-foreground">{currentRunRate.toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground">Current RR</div>
+                        </div>
+                        {requiredRunRate && (
+                          <div className="text-center p-2 bg-muted/30 rounded border">
+                            <div className={`font-semibold ${requiredRunRate > currentRunRate + 2 ? 'text-destructive' : 'text-orange-600 dark:text-orange-400'}`}>
+                              {requiredRunRate.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Required RR</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Target Information */}
+                    {target && ballsLeft && (
+                      <div className="text-center p-2 bg-muted/30 rounded border text-sm">
+                        <div className="font-medium">
+                          Need {Math.max(0, target - currentRuns)} runs from {ballsLeft} balls
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Target: {target}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Match Progress */}
+                    {isSimulating && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Match Progress</span>
+                          <span>{commentary.length} balls</span>
+                        </div>
+                        <Progress
+                          value={(commentary.length / (matchResult?.commentary?.length || 1)) * 100}
+                          className="h-2"
+                        />
+                      </div>
+                    )}
+
+                    {/* Final Result */}
+                    {simulationComplete && matchResult && (
+                      <div className="space-y-2 text-center pt-4 border-t">
+                        <h3 className="font-semibold text-lg">Match Result</h3>
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <strong>{matchResult.homeTeamName}:</strong> {matchResult.homeScore} ({matchResult.homeOvers} overs)
+                          </div>
+                          <div className="text-sm">
+                            <strong>{matchResult.awayTeamName}:</strong> {matchResult.awayScore} ({matchResult.awayOvers} overs)
+                          </div>
+                          {matchResult.winMargin && matchResult.winType && (
+                            <div className="text-sm font-medium text-primary">
+                              Won by {matchResult.winMargin} {matchResult.winType}
+                            </div>
+                          )}
+                        </div>
+                        <Badge variant="default" className="mt-2">
+                          Match Complete
+                        </Badge>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -548,60 +763,108 @@ export default function MatchSimulation() {
                       </div>
                     )}
                     
-                    <div className="space-y-3">
-                      {commentary.map((comment, index) => (
-                        <div 
-                          key={index}
-                          className={`p-3 rounded-lg border-l-4 transition-all duration-300 ${getEventColor(comment)}`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <Badge variant="outline" className="text-xs">
-                                {comment.over}.{comment.ball}
-                              </Badge>
-                              {comment.isPowerplay && (
-                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                  PP
+                    <div className="space-y-4">
+                      {commentary.map((comment, index) => {
+                        const timestamp = new Date(Date.now() - (commentary.length - index) * 500).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit'
+                        });
+
+                        return (
+                          <div
+                            key={index}
+                            className={`p-4 rounded-lg border-l-4 transition-all duration-300 hover:shadow-md ${getEventColor(comment)}`}
+                          >
+                            {/* Header with over, score, and timestamp */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center space-x-3">
+                                <Badge variant="outline" className="text-xs font-mono bg-background/50">
+                                  {comment.over}.{comment.ball}
                                 </Badge>
-                              )}
-                              {comment.isDeathOvers && (
-                                <Badge variant="secondary" className="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                                  Death
-                                </Badge>
-                              )}
-                              {(comment.isWicket || comment.runs === 4 || comment.runs === 6 || comment.milestone) && 
-                                getEventIcon(comment)
-                              }
-                            </div>
-                            <div className="text-sm font-medium">
-                              {comment.totalRuns}/{comment.wickets}
-                              {comment.currentRunRate && (
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  RR: {comment.currentRunRate.toFixed(1)}
+                                <div className="text-sm font-bold text-primary">
+                                  {comment.totalRuns}/{comment.wickets}
+                                </div>
+                                {comment.currentRunRate && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    RR: {comment.currentRunRate.toFixed(1)}
+                                  </Badge>
+                                )}
+                                {comment.isPowerplay && (
+                                  <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                    Powerplay
+                                  </Badge>
+                                )}
+                                {comment.isDeathOvers && (
+                                  <Badge variant="secondary" className="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                    Death Overs
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {(comment.isWicket || comment.runs === 4 || comment.runs === 6 || comment.milestone) &&
+                                  getEventIcon(comment)
+                                }
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  {timestamp}
                                 </span>
-                              )}
+                              </div>
                             </div>
-                          </div>
-                          
-                          <p className="text-sm mb-2">{comment.commentary}</p>
-                          
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{comment.batsman} facing {comment.bowler}</span>
-                            <div className="flex items-center space-x-2">
-                              {comment.runs > 0 && !comment.isWicket && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {comment.runs} run{comment.runs > 1 ? 's' : ''}
-                                </Badge>
-                              )}
-                              {comment.extras && (
-                                <Badge variant="outline" className="text-xs">
-                                  {comment.extras}
-                                </Badge>
-                              )}
+
+                            {/* Main commentary text */}
+                            <div className="mb-3">
+                              <p className="text-sm leading-relaxed">{comment.commentary}</p>
                             </div>
+
+                            {/* Footer with batsman/bowler and additional info */}
+                            <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2">
+                              <div className="flex items-center space-x-4">
+                                <span className="font-medium">
+                                  {comment.batsman} vs {comment.bowler}
+                                </span>
+                                {comment.requiredRunRate && (
+                                  <span className={`font-medium ${comment.requiredRunRate > comment.currentRunRate + 2 ? 'text-destructive' : 'text-orange-600 dark:text-orange-400'}`}>
+                                    Req RR: {comment.requiredRunRate.toFixed(1)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {comment.runs > 0 && !comment.isWicket && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    +{comment.runs} run{comment.runs > 1 ? 's' : ''}
+                                  </Badge>
+                                )}
+                                {comment.extras && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {comment.extras}
+                                  </Badge>
+                                )}
+                                {comment.ballsLeft && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {comment.ballsLeft} balls left
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Additional context for special events */}
+                            {(comment.isWicket || comment.runs === 4 || comment.runs === 6) && (
+                              <div className="mt-2 p-2 bg-muted/30 rounded text-xs">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium">
+                                    {comment.isWicket ? 'Wicket Alert' :
+                                     comment.runs === 6 ? 'Maximum!' :
+                                     comment.runs === 4 ? 'Boundary!' : 'Key Moment'}
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    Over {comment.over}.{comment.ball}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </ScrollArea>
                 ) : (
@@ -620,37 +883,43 @@ export default function MatchSimulation() {
                           <div className="mb-4">
                             <h4 className="font-medium mb-2">Batting</h4>
                             <div className="overflow-x-auto">
-                              <table className="w-full text-sm border">
-                                <thead>
-                                  <tr className="border-b bg-muted/30">
-                                    <th className="text-left p-2">Batsman</th>
-                                    <th className="text-center p-2">R</th>
-                                    <th className="text-center p-2">B</th>
-                                    <th className="text-center p-2">4s</th>
-                                    <th className="text-center p-2">6s</th>
-                                    <th className="text-center p-2">SR</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {matchResult.firstInnings.batsmanScores?.map((batsman, index) => (
-                                    <tr key={index} className="border-b">
-                                      <td className="p-2">
-                                        {batsman.name}
-                                        {batsman.out && (
-                                          <div className="text-xs text-destructive">
-                                            {batsman.outType} b {batsman.bowler}
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="text-center p-2 font-medium">{batsman.runs}</td>
-                                      <td className="text-center p-2">{batsman.balls}</td>
-                                      <td className="text-center p-2">{batsman.fours}</td>
-                                      <td className="text-center p-2">{batsman.sixes}</td>
-                                      <td className="text-center p-2">{batsman.strikeRate}</td>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm border">
+                                  <thead>
+                                    <tr className="border-b bg-muted/30">
+                                      <th className="text-left p-2">Batsman</th>
+                                      <th className="text-center p-2">Age</th>
+                                      <th className="text-center p-2">R</th>
+                                      <th className="text-center p-2">B</th>
+                                      <th className="text-center p-2">4s</th>
+                                      <th className="text-center p-2">6s</th>
+                                      <th className="text-center p-2">SR</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                  </thead>
+                                  <tbody>
+                                    {matchResult.firstInnings.batsmanScores?.map((batsman, index) => (
+                                      <tr key={index} className="border-b hover:bg-muted/20">
+                                        <td className="p-2">
+                                          <div className="font-medium">{batsman.name}</div>
+                                          {batsman.out && (
+                                            <div className="text-xs text-destructive">
+                                              {batsman.outType} b {batsman.bowler}
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className="text-center p-2 text-muted-foreground">
+                                          {batsman.age || '-'}
+                                        </td>
+                                        <td className="text-center p-2 font-medium">{batsman.runs}</td>
+                                        <td className="text-center p-2">{batsman.balls}</td>
+                                        <td className="text-center p-2">{batsman.fours}</td>
+                                        <td className="text-center p-2">{batsman.sixes}</td>
+                                        <td className="text-center p-2">{batsman.strikeRate}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           </div>
 
@@ -701,6 +970,7 @@ export default function MatchSimulation() {
                                 <thead>
                                   <tr className="border-b bg-muted/30">
                                     <th className="text-left p-2">Batsman</th>
+                                    <th className="text-center p-2">Age</th>
                                     <th className="text-center p-2">R</th>
                                     <th className="text-center p-2">B</th>
                                     <th className="text-center p-2">4s</th>
@@ -710,14 +980,17 @@ export default function MatchSimulation() {
                                 </thead>
                                 <tbody>
                                   {matchResult.secondInnings.batsmanScores?.map((batsman, index) => (
-                                    <tr key={index} className="border-b">
+                                    <tr key={index} className="border-b hover:bg-muted/20">
                                       <td className="p-2">
-                                        {batsman.name}
+                                        <div className="font-medium">{batsman.name}</div>
                                         {batsman.out && (
                                           <div className="text-xs text-destructive">
                                             {batsman.outType} b {batsman.bowler}
                                           </div>
                                         )}
+                                      </td>
+                                      <td className="text-center p-2 text-muted-foreground">
+                                        {batsman.age || '-'}
                                       </td>
                                       <td className="text-center p-2 font-medium">{batsman.runs}</td>
                                       <td className="text-center p-2">{batsman.balls}</td>

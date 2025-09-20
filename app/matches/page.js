@@ -332,33 +332,95 @@ export default function MatchesPage() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {completedMatches.map((match) => (
-                  <Card key={match.id}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle>T20 Match</CardTitle>
-                        <Badge variant={match.result === user.id ? 'default' : 'destructive'}>
-                          {match.result === user.id ? 'Won' : 'Lost'}
-                        </Badge>
-                      </div>
-                      <CardDescription>
-                        Played: {new Date(match.scheduled_time).toLocaleDateString()}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <div className="text-lg font-semibold">
-                          Final Score: {match.home_score} - {match.away_score}
+                {completedMatches.map((match) => {
+                  // Handle different score formats - prioritize direct fields, fallback to match_data
+                  const homeScore = match.home_score ?? match.match_data?.firstInnings?.runs ?? 0;
+                  const awayScore = match.away_score ?? match.match_data?.secondInnings?.runs ?? 0;
+                  const homeWickets = match.home_wickets ?? match.match_data?.firstInnings?.wickets ?? 10;
+                  const awayWickets = match.away_wickets ?? match.match_data?.secondInnings?.wickets ?? 10;
+                  const homeOvers = match.home_overs ?? match.match_data?.firstInnings?.overs ?? 0;
+                  const awayOvers = match.away_overs ?? match.match_data?.secondInnings?.overs ?? 0;
+
+                  // Determine winner with better logic
+                  let result = 'Draw';
+                  let resultVariant = 'secondary';
+
+                  if (match.result === user.id) {
+                    result = 'Won';
+                    resultVariant = 'default';
+                  } else if (match.result && match.result !== 'tie' && match.result !== user.id) {
+                    result = 'Lost';
+                    resultVariant = 'destructive';
+                  } else if (match.result === 'tie') {
+                    result = 'Tie';
+                    resultVariant = 'secondary';
+                  }
+
+                  // Format overs properly
+                  const formatOvers = (overs) => {
+                    if (typeof overs === 'number') {
+                      const wholeOvers = Math.floor(overs);
+                      const balls = Math.round((overs - wholeOvers) * 10);
+                      return balls > 0 ? `${wholeOvers}.${balls}` : `${wholeOvers}`;
+                    }
+                    return overs || '0';
+                  };
+
+                  return (
+                    <Card key={match.id}>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle>T20 Match</CardTitle>
+                          <Badge variant={resultVariant}>
+                            {result}
+                          </Badge>
                         </div>
-                        <Link href={`/match/${match.id}`}>
-                          <Button variant="outline" size="sm">
-                            View Match
-                          </Button>
-                        </Link>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <CardDescription>
+                          Played: {new Date(match.completed_at || match.scheduled_time).toLocaleDateString()}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="text-center p-3 bg-muted/30 rounded-lg">
+                              <div className="text-lg font-bold text-primary">
+                                {homeScore}/{homeWickets}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {formatOvers(homeOvers)} overs
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {user.team_name}
+                              </div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/30 rounded-lg">
+                              <div className="text-lg font-bold text-primary">
+                                {awayScore}/{awayWickets}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {formatOvers(awayOvers)} overs
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Opponent
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t">
+                            <div className="text-sm text-muted-foreground">
+                              {match.weather || 'Sunny'} • {match.pitch_type || 'Normal'} Pitch
+                            </div>
+                            <Link href={`/match/${match.id}`}>
+                              <Button variant="outline" size="sm">
+                                View Match Details
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>

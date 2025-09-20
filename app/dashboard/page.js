@@ -15,7 +15,10 @@ import {
   Calendar,
   TrendingUp,
   Play,
-  Coins
+  Coins,
+  Wifi,
+  WifiOff,
+  RefreshCw
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -26,6 +29,7 @@ export default function DashboardPage() {
   const [lineups, setLineups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [backgroundMatch, setBackgroundMatch] = useState(null);
+  const [liveMatchUpdates, setLiveMatchUpdates] = useState(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,6 +37,32 @@ export default function DashboardPage() {
       fetchUserData();
       checkBackgroundMatch();
     }
+  }, [user]);
+
+  // Check for background match updates when component mounts or when returning from match
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Page became visible - refresh data and check background match
+        fetchUserData();
+        checkBackgroundMatch();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also check when window regains focus
+    const handleFocus = () => {
+      fetchUserData();
+      checkBackgroundMatch();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [user]);
 
   const checkBackgroundMatch = () => {
@@ -236,6 +266,55 @@ export default function DashboardPage() {
 
       <div className="container mx-auto px-4 py-6">
 
+        {/* Quick Access - Running Matches */}
+        {inProgressMatches.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-3 flex items-center">
+              <div className="w-3 h-3 bg-destructive rounded-full animate-pulse mr-2"></div>
+              Running Matches
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {inProgressMatches.slice(0, 3).map((match) => {
+                const currentScore = match.current_runs || 0;
+                const currentWickets = match.current_wickets || 0;
+                const currentOver = match.current_over || 0;
+                const currentBall = match.current_ball || 0;
+
+                return (
+                  <Card key={match.id} className="border-destructive/20 bg-gradient-to-r from-destructive/5 to-destructive/10">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="outline" className="bg-destructive text-destructive-foreground text-xs">
+                          {match.status === 'paused' ? 'PAUSED' : 'LIVE'}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {match.weather}
+                        </span>
+                      </div>
+
+                      <div className="text-center mb-3">
+                        <div className="text-xl font-bold text-primary">
+                          {currentScore}/{currentWickets}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {currentOver}.{currentBall} overs
+                        </div>
+                      </div>
+
+                      <Link href={`/match/${match.id}`}>
+                        <Button size="sm" className="w-full bg-destructive hover:bg-destructive/90">
+                          <Play className="w-4 h-4 mr-2" />
+                          {match.status === 'paused' ? 'Resume' : 'Watch Live'}
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Background Match Alert */}
         {backgroundMatch && (
           <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10 dark:border-primary/30 mb-6">
@@ -332,54 +411,90 @@ export default function DashboardPage() {
           {inProgressMatches.length > 0 && (
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-destructive rounded-full animate-pulse"></div>
-                  <span>Live Matches</span>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-destructive rounded-full animate-pulse"></div>
+                    <span>Live Matches</span>
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchUserData()}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {inProgressMatches.map((match) => (
-                    <div key={match.id} className="p-4 border rounded-lg bg-muted/30">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className="bg-destructive text-destructive-foreground">
-                            {match.status === 'paused' ? 'PAUSED' : 'LIVE'}
-                          </Badge>
-                          <span className="text-sm font-medium">T20 Match</span>
-                        </div>
-                        <Badge variant="secondary">
-                          {match.weather} • {match.pitch_type}
-                        </Badge>
-                      </div>
+                  {inProgressMatches.map((match) => {
+                    const currentScore = match.current_runs || 0;
+                    const currentWickets = match.current_wickets || 0;
+                    const currentOver = match.current_over || 0;
+                    const currentBall = match.current_ball || 0;
+                    const runRate = currentScore > 0 && currentOver > 0
+                      ? (currentScore / ((currentOver * 6 + currentBall) / 6)).toFixed(2)
+                      : '0.00';
 
-                      <div className="space-y-2 mb-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">{user.team_name}</span>
-                          <span className="font-bold">{match.current_runs || 0}/{match.current_wickets || 0}</span>
+                    return (
+                      <div key={match.id} className="p-4 border rounded-lg bg-gradient-to-r from-destructive/5 to-destructive/10 border-destructive/20">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className="bg-destructive text-destructive-foreground border-destructive animate-pulse">
+                              {match.status === 'paused' ? 'PAUSED' : 'LIVE'}
+                            </Badge>
+                            <span className="text-sm font-medium">T20 Match</span>
+                          </div>
+                          <Badge variant="secondary" className="text-xs">
+                            {match.weather} • {match.pitch_type}
+                          </Badge>
                         </div>
-                        <div className="flex justify-between items-center text-xs text-muted-foreground">
-                          <span>Overs: {match.current_over || 0}.{match.current_ball || 0}</span>
-                          {match.current_runs && match.current_over && (
-                            <span>RR: {((match.current_runs / ((match.current_over * 6 + match.current_ball) / 6)) || 0).toFixed(2)}</span>
+
+                        {/* Live Score Display */}
+                        <div className="text-center mb-3 p-3 bg-background/50 rounded-lg border">
+                          <div className="text-2xl font-bold text-primary mb-1">
+                            {currentScore}/{currentWickets}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Overs: {currentOver}.{currentBall} • RR: {runRate}
+                          </div>
+                          {match.target && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Target: {match.target} runs
+                            </div>
                           )}
                         </div>
-                      </div>
 
-                      <div className="flex space-x-2">
-                        <Link href={`/match/${match.id}`} className="flex-1">
-                          <Button size="sm" className="w-full">
-                            Resume Match
-                          </Button>
-                        </Link>
-                        <Link href={`/match/${match.id}`}>
-                          <Button size="sm" variant="outline">
-                            View
-                          </Button>
-                        </Link>
+                        {/* Team Info */}
+                        <div className="space-y-2 mb-4">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="font-medium">{user.team_name}</span>
+                            <span className="text-muted-foreground">vs Opponent</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Last updated: {new Date(match.updated_at || match.created_at).toLocaleTimeString()}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex space-x-2">
+                          <Link href={`/match/${match.id}`} className="flex-1">
+                            <Button size="sm" className="w-full bg-destructive hover:bg-destructive/90">
+                              <Play className="w-4 h-4 mr-2" />
+                              {match.status === 'paused' ? 'Resume Match' : 'Watch Live'}
+                            </Button>
+                          </Link>
+                          <Link href={`/match/${match.id}`}>
+                            <Button size="sm" variant="outline">
+                              Details
+                            </Button>
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -435,19 +550,57 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {completedMatches.slice(-3).map((match) => (
-                    <div key={match.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">T20 Match</p>
-                        <p className="text-sm text-muted-foreground">
-                          {match.home_score} - {match.away_score}
-                        </p>
+                  {completedMatches.slice(-3).map((match) => {
+                    // Handle different score formats - prioritize direct fields, fallback to match_data
+                    const homeScore = match.home_score ?? match.match_data?.firstInnings?.runs ?? 0;
+                    const awayScore = match.away_score ?? match.match_data?.secondInnings?.runs ?? 0;
+                    const homeWickets = match.home_wickets ?? match.match_data?.firstInnings?.wickets ?? 10;
+                    const awayWickets = match.away_wickets ?? match.match_data?.secondInnings?.wickets ?? 10;
+                    const homeOvers = match.home_overs ?? match.match_data?.firstInnings?.overs ?? 0;
+                    const awayOvers = match.away_overs ?? match.match_data?.secondInnings?.overs ?? 0;
+
+                    // Determine winner with better logic
+                    let result = 'Draw';
+                    let resultVariant = 'secondary';
+
+                    if (match.result === user.id) {
+                      result = 'Won';
+                      resultVariant = 'default';
+                    } else if (match.result && match.result !== 'tie' && match.result !== user.id) {
+                      result = 'Lost';
+                      resultVariant = 'destructive';
+                    } else if (match.result === 'tie') {
+                      result = 'Tie';
+                      resultVariant = 'secondary';
+                    }
+
+                    // Format overs properly
+                    const formatOvers = (overs) => {
+                      if (typeof overs === 'number') {
+                        const wholeOvers = Math.floor(overs);
+                        const balls = Math.round((overs - wholeOvers) * 10);
+                        return balls > 0 ? `${wholeOvers}.${balls}` : `${wholeOvers}`;
+                      }
+                      return overs || '0';
+                    };
+
+                    return (
+                      <div key={match.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex-1">
+                          <p className="font-medium">T20 Match</p>
+                          <p className="text-sm text-muted-foreground">
+                            {homeScore}/{homeWickets} ({formatOvers(homeOvers)}) vs {awayScore}/{awayWickets} ({formatOvers(awayOvers)})
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {match.weather || 'Sunny'} • {match.pitch_type || 'Normal'}
+                          </p>
+                        </div>
+                        <Badge variant={resultVariant} className="ml-3">
+                          {result}
+                        </Badge>
                       </div>
-                      <Badge variant={match.result === user.id ? 'default' : 'secondary'}>
-                        {match.result === user.id ? 'Won' : 'Lost'}
-                      </Badge>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
