@@ -1,17 +1,7 @@
-import { MongoClient } from 'mongodb';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { generatePlayerName } from '@/lib/playerNames';
-
-let client = null;
-
-async function getDatabase() {
-  if (!client) {
-    client = new MongoClient(process.env.MONGO_URL);
-    await client.connect();
-  }
-  return client.db(process.env.DB_NAME || 'cricket_pavilion');
-}
+import { getDatabase } from '@/lib/mongodb';
 
 // Helper function to generate player with realistic skills
 function generatePlayer(age = null, userId = null, playerIndex = 0) {
