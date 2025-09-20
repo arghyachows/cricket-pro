@@ -10,10 +10,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
-import { 
-  ArrowLeft, 
-  Play, 
-  Pause, 
+import Navigation from '@/components/Navigation';
+import {
+  ArrowLeft,
+  Play,
+  Pause,
   Trophy,
   Target,
   Zap,
@@ -23,13 +24,15 @@ import {
   Activity,
   Users,
   TrendingUp,
-  Layers
+  Layers,
+  Coins
 } from 'lucide-react';
 
 export default function MatchSimulation() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const [user, setUser] = useState(null);
   const [match, setMatch] = useState(null);
   const [commentary, setCommentary] = useState([]);
   const [currentCommentaryIndex, setCurrentCommentaryIndex] = useState(0);
@@ -55,11 +58,30 @@ export default function MatchSimulation() {
   const [ballsLeft, setBallsLeft] = useState(null);
 
   useEffect(() => {
-    if (params.id) {
+    // Check if user is logged in
+    const checkAuth = () => {
+      try {
+        const savedUser = localStorage.getItem('user');
+        if (savedUser) {
+          setUser(JSON.parse(savedUser));
+        } else {
+          router.push('/');
+        }
+      } catch (error) {
+        console.error('Error checking auth:', error);
+        router.push('/');
+      }
+    };
+
+    checkAuth();
+  }, [router]);
+
+  useEffect(() => {
+    if (params.id && user) {
       fetchMatch();
       checkForBackgroundMatch();
     }
-  }, [params.id]);
+  }, [params.id, user]);
 
   const checkForBackgroundMatch = () => {
     try {
@@ -267,24 +289,24 @@ export default function MatchSimulation() {
   };
 
   const getEventIcon = (comment) => {
-    if (comment.isWicket) return <Target className="w-6 h-6 text-red-600" />;
-    if (comment.runs === 6) return <Crown className="w-6 h-6 text-purple-600" />;
-    if (comment.runs === 4) return <Zap className="w-6 h-6 text-blue-600" />;
-    return <Trophy className="w-6 h-6 text-green-600" />;
+    if (comment.isWicket) return <Target className="w-6 h-6 text-destructive" />;
+    if (comment.runs === 6) return <Crown className="w-6 h-6 text-purple-500 dark:text-purple-400" />;
+    if (comment.runs === 4) return <Zap className="w-6 h-6 text-blue-500 dark:text-blue-400" />;
+    return <Trophy className="w-6 h-6 text-green-500 dark:text-green-400" />;
   };
 
   const getEventColor = (comment) => {
-    if (comment.isWicket) return 'bg-red-50 border-red-500';
-    if (comment.runs === 6) return 'bg-purple-50 border-purple-500';
-    if (comment.runs === 4) return 'bg-blue-50 border-blue-500';
-    return 'bg-gray-50 border-gray-300';
+    if (comment.isWicket) return 'bg-destructive/10 border-destructive/20 dark:bg-destructive/20 dark:border-destructive/30';
+    if (comment.runs === 6) return 'bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-700';
+    if (comment.runs === 4) return 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700';
+    return 'bg-muted border-border';
   };
 
   if (!match) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading match...</p>
         </div>
       </div>
@@ -294,12 +316,37 @@ export default function MatchSimulation() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur">
+      <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Trophy className="w-8 h-8 text-primary" />
+              <div>
+                <h1 className="text-xl font-bold">Cricket Manager Pro</h1>
+                <p className="text-sm text-muted-foreground">Match Simulation</p>
+              </div>
+            </div>
+
             <div className="flex items-center space-x-4">
-              <Button 
-                variant="outline" 
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <Coins className="w-4 h-4" />
+                <span>{user?.coins?.toLocaleString() || '0'} coins</span>
+              </Badge>
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <span>{user?.country || 'Country'}</span>
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation */}
+      <nav className="border-b bg-muted/30">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={handleBackClick}
               >
@@ -307,12 +354,21 @@ export default function MatchSimulation() {
                 Back to Dashboard
               </Button>
               <div>
-                <h1 className="text-xl font-bold">Match Simulation</h1>
-                <p className="text-sm text-muted-foreground">{match.match_type} Match</p>
+                <h2 className="text-2xl font-bold">{match.match_type} Match Simulation</h2>
+                <p className="text-sm text-muted-foreground">
+                  {match.weather} • {match.pitch_type} Pitch • {match.status}
+                </p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2">
+              <Navigation
+                user={user}
+                onLogout={() => {
+                  localStorage.removeItem('user');
+                  router.push('/');
+                }}
+              />
               {isSimulating && (
                 <Button
                   variant="outline"
@@ -323,7 +379,7 @@ export default function MatchSimulation() {
                   {isPaused ? 'Resume' : 'Pause'}
                 </Button>
               )}
-              
+
               {!isSimulating && !simulationComplete && (
                 <Button onClick={startSimulation}>
                   <Play className="w-4 h-4 mr-2" />
@@ -333,7 +389,7 @@ export default function MatchSimulation() {
             </div>
           </div>
         </div>
-      </header>
+      </nav>
 
       <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -356,27 +412,27 @@ export default function MatchSimulation() {
 
                 {/* Current Score */}
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600">
+                  <div className="text-3xl font-bold text-primary">
                     {currentRuns}/{currentWickets}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {currentOver > 0 && `${currentOver}.${currentBall} overs`}
                   </div>
                 </div>
-                
+
                 {/* Run Rates */}
                 {(currentRunRate > 0 || requiredRunRate) && (
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-center p-2 bg-blue-50 rounded">
-                      <div className="font-semibold text-blue-600">{currentRunRate.toFixed(2)}</div>
-                      <div className="text-xs text-blue-500">Current RR</div>
+                    <div className="text-center p-2 bg-muted/30 rounded border">
+                      <div className="font-semibold text-foreground">{currentRunRate.toFixed(2)}</div>
+                      <div className="text-xs text-muted-foreground">Current RR</div>
                     </div>
                     {requiredRunRate && (
-                      <div className="text-center p-2 bg-orange-50 rounded">
-                        <div className={`font-semibold ${requiredRunRate > currentRunRate + 2 ? 'text-red-600' : 'text-orange-600'}`}>
+                      <div className="text-center p-2 bg-muted/30 rounded border">
+                        <div className={`font-semibold ${requiredRunRate > currentRunRate + 2 ? 'text-destructive' : 'text-orange-600 dark:text-orange-400'}`}>
                           {requiredRunRate.toFixed(2)}
                         </div>
-                        <div className="text-xs text-orange-500">Required RR</div>
+                        <div className="text-xs text-muted-foreground">Required RR</div>
                       </div>
                     )}
                   </div>
@@ -384,7 +440,7 @@ export default function MatchSimulation() {
 
                 {/* Target Information */}
                 {target && ballsLeft && (
-                  <div className="text-center p-2 bg-gray-50 rounded text-sm">
+                  <div className="text-center p-2 bg-muted/30 rounded border text-sm">
                     <div className="font-medium">
                       Need {Math.max(0, target - currentRuns)} runs from {ballsLeft} balls
                     </div>
@@ -420,7 +476,7 @@ export default function MatchSimulation() {
                         <strong>{matchResult.awayTeamName}:</strong> {matchResult.awayScore} ({matchResult.awayOvers} overs)
                       </div>
                       {matchResult.winMargin && matchResult.winType && (
-                        <div className="text-sm font-medium text-green-600">
+                        <div className="text-sm font-medium text-primary">
                           Won by {matchResult.winMargin} {matchResult.winType}
                         </div>
                       )}
@@ -504,12 +560,12 @@ export default function MatchSimulation() {
                                 {comment.over}.{comment.ball}
                               </Badge>
                               {comment.isPowerplay && (
-                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                                   PP
                                 </Badge>
                               )}
                               {comment.isDeathOvers && (
-                                <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
+                                <Badge variant="secondary" className="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                                   Death
                                 </Badge>
                               )}
@@ -581,7 +637,7 @@ export default function MatchSimulation() {
                                       <td className="p-2">
                                         {batsman.name}
                                         {batsman.out && (
-                                          <div className="text-xs text-red-600">
+                                          <div className="text-xs text-destructive">
                                             {batsman.outType} b {batsman.bowler}
                                           </div>
                                         )}
@@ -658,7 +714,7 @@ export default function MatchSimulation() {
                                       <td className="p-2">
                                         {batsman.name}
                                         {batsman.out && (
-                                          <div className="text-xs text-red-600">
+                                          <div className="text-xs text-destructive">
                                             {batsman.outType} b {batsman.bowler}
                                           </div>
                                         )}

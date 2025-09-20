@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -196,7 +197,7 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Trophy className="w-8 h-8 text-green-600" />
+              <Trophy className="w-8 h-8 text-primary" />
               <div>
                 <h1 className="text-xl font-bold">Cricket Manager Pro</h1>
                 <p className="text-sm text-muted-foreground">{user.team_name}</p>
@@ -237,12 +238,12 @@ export default function DashboardPage() {
 
         {/* Background Match Alert */}
         {backgroundMatch && (
-          <Card className="border-orange-200 bg-orange-50 mb-6">
+          <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10 dark:border-primary/30 mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
-                  <CardTitle className="text-orange-800">Match in Progress</CardTitle>
+                  <div className="w-3 h-3 bg-primary rounded-full animate-pulse"></div>
+                  <CardTitle className="text-primary">Match in Progress</CardTitle>
                 </div>
                 <Button variant="ghost" size="sm" onClick={dismissBackgroundMatch}>
                   ×
@@ -251,26 +252,28 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <p className="text-sm text-orange-700">
+                <p className="text-sm text-primary/80 dark:text-primary/70">
                   You have a T20 match running in the background
                 </p>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium">Score:</span> {backgroundMatch.currentRuns}/{backgroundMatch.currentWickets}
+                    <span className="font-medium text-foreground">Score:</span> {backgroundMatch.currentRuns}/{backgroundMatch.currentWickets}
                   </div>
                   <div>
-                    <span className="font-medium">Over:</span> {backgroundMatch.currentOver}.{backgroundMatch.currentBall}
+                    <span className="font-medium text-foreground">Over:</span> {backgroundMatch.currentOver}.{backgroundMatch.currentBall}
                   </div>
                 </div>
                 {backgroundMatch.target && (
                   <div className="text-sm">
-                    <span className="font-medium">Target:</span> {backgroundMatch.target} runs
+                    <span className="font-medium text-foreground">Target:</span> {backgroundMatch.target} runs
                   </div>
                 )}
-                <Button onClick={returnToMatch} className="w-full mt-3">
-                  <Play className="w-4 h-4 mr-2" />
-                  Return to Match
-                </Button>
+                <Link href={`/match/${backgroundMatch.matchId}`} className="w-full">
+                  <Button className="w-full mt-3">
+                    <Play className="w-4 h-4 mr-2" />
+                    Return to Match
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>
@@ -330,17 +333,17 @@ export default function DashboardPage() {
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                  <div className="w-3 h-3 bg-destructive rounded-full animate-pulse"></div>
                   <span>Live Matches</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {inProgressMatches.map((match) => (
-                    <div key={match.id} className="p-4 border rounded-lg bg-gradient-to-r from-green-50 to-blue-50">
+                    <div key={match.id} className="p-4 border rounded-lg bg-muted/30">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className="bg-red-500 text-white">
+                          <Badge variant="outline" className="bg-destructive text-destructive-foreground">
                             {match.status === 'paused' ? 'PAUSED' : 'LIVE'}
                           </Badge>
                           <span className="text-sm font-medium">T20 Match</span>
@@ -364,20 +367,16 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          onClick={() => simulateMatch(match.id)}
-                          className="flex-1"
-                        >
-                          Resume Match
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => router.push(`/match/${match.id}`)}
-                        >
-                          View
-                        </Button>
+                        <Link href={`/match/${match.id}`} className="flex-1">
+                          <Button size="sm" className="w-full">
+                            Resume Match
+                          </Button>
+                        </Link>
+                        <Link href={`/match/${match.id}`}>
+                          <Button size="sm" variant="outline">
+                            View
+                          </Button>
+                        </Link>
                       </div>
                     </div>
                   ))}
@@ -412,13 +411,11 @@ export default function DashboardPage() {
                           {match.weather} • {match.pitch_type}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => simulateMatch(match.id)}
-                        disabled={loading}
-                      >
-                        Simulate
-                      </Button>
+                      <Link href={`/match/${match.id}`}>
+                        <Button size="sm" disabled={loading}>
+                          Simulate
+                        </Button>
+                      </Link>
                     </div>
                   ))}
                 </div>

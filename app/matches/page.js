@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -242,12 +243,11 @@ export default function MatchesPage() {
                           <p><strong>Pitch:</strong> {match.pitch_type}</p>
                           <p><strong>Weather:</strong> {match.weather}</p>
                         </div>
-                        <Button
-                          onClick={() => simulateMatch(match.id)}
-                          disabled={loading}
-                        >
-                          {loading ? 'Simulating...' : 'Simulate Match'}
-                        </Button>
+                        <Link href={`/match/${match.id}`}>
+                          <Button disabled={loading}>
+                            {loading ? 'Simulating...' : 'Simulate Match'}
+                          </Button>
+                        </Link>
                       </div>
                     </CardContent>
                   </Card>
@@ -304,19 +304,16 @@ export default function MatchesPage() {
                       </div>
 
                       <div className="flex space-x-2">
-                        <Button
-                          onClick={() => simulateMatch(match.id)}
-                          className="flex-1"
-                          disabled={loading}
-                        >
-                          {match.status === 'paused' ? 'Resume Match' : 'Continue Watching'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => router.push(`/match/${match.id}`)}
-                        >
-                          View Details
-                        </Button>
+                        <Link href={`/match/${match.id}`} className="flex-1">
+                          <Button className="w-full" disabled={loading}>
+                            {match.status === 'paused' ? 'Resume Match' : 'Continue Watching'}
+                          </Button>
+                        </Link>
+                        <Link href={`/match/${match.id}`}>
+                          <Button variant="outline">
+                            View Details
+                          </Button>
+                        </Link>
                       </div>
                     </CardContent>
                   </Card>
@@ -353,13 +350,11 @@ export default function MatchesPage() {
                         <div className="text-lg font-semibold">
                           Final Score: {match.home_score} - {match.away_score}
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/match/${match.id}`)}
-                        >
-                          View Match
-                        </Button>
+                        <Link href={`/match/${match.id}`}>
+                          <Button variant="outline" size="sm">
+                            View Match
+                          </Button>
+                        </Link>
                       </div>
                     </CardContent>
                   </Card>

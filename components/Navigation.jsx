@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import ThemeToggler from './ThemeToggler';
 import {
   Trophy,
   Users,
@@ -105,17 +106,20 @@ export default function Navigation({ user, onLogout }) {
     <>
       {/* Desktop Navigation */}
       <div className="hidden md:flex items-center space-x-2">
+        {/* Theme Toggler and Logout at the top */}
+        <div className="flex items-center space-x-2 mr-4">
+          <ThemeToggler />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLogout}
+            className="flex items-center space-x-2 transition-all duration-200 ease-in-out transform hover:scale-105 hover:bg-destructive hover:text-destructive-foreground"
+          >
+            <LogOut className="w-4 h-4 transition-transform duration-200 group-hover:rotate-12" />
+            <span>Logout</span>
+          </Button>
+        </div>
         <NavItems />
-        {/* Desktop Logout Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onLogout}
-          className="ml-4 flex items-center space-x-2 transition-all duration-200 ease-in-out transform hover:scale-105 hover:bg-destructive hover:text-destructive-foreground"
-        >
-          <LogOut className="w-4 h-4 transition-transform duration-200 group-hover:rotate-12" />
-          <span>Logout</span>
-        </Button>
       </div>
 
       {/* Mobile Navigation */}
@@ -129,6 +133,23 @@ export default function Navigation({ user, onLogout }) {
           </SheetTrigger>
           <SheetContent side="left" className="flex flex-col w-80">
             <div className="flex flex-col space-y-4 mt-4">
+              {/* Theme Toggler and Logout at the top */}
+              <div className="flex items-center justify-center space-x-2 py-2 border-b">
+                <ThemeToggler />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center space-x-2 transition-all duration-200 ease-in-out transform hover:scale-105 hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={() => {
+                    onLogout();
+                    setIsOpen(false);
+                  }}
+                >
+                  <LogOut className="w-4 h-4 transition-transform duration-200 group-hover:rotate-12" />
+                  <span>Logout</span>
+                </Button>
+              </div>
+
               {/* User Info */}
               <div className="flex items-center space-x-3 p-4 bg-muted rounded-lg">
                 <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
@@ -153,21 +174,6 @@ export default function Navigation({ user, onLogout }) {
               {/* Navigation Items */}
               <div className="flex flex-col space-y-2">
                 <NavItems mobile />
-              </div>
-
-              {/* Logout Button */}
-              <div className="pt-4 border-t">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start h-12 px-4 transition-all duration-200 ease-in-out transform hover:scale-105 hover:bg-destructive hover:text-destructive-foreground"
-                  onClick={() => {
-                    onLogout();
-                    setIsOpen(false);
-                  }}
-                >
-                  <LogOut className="w-5 h-5 mr-3 transition-transform duration-200 group-hover:rotate-12" />
-                  <span className="text-base">Logout</span>
-                </Button>
               </div>
             </div>
           </SheetContent>
