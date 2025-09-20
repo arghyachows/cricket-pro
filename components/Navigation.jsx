@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -58,14 +59,8 @@ const navigationItems = [
 ];
 
 export default function Navigation({ user, onLogout }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-
-  const handleNavigation = (href) => {
-    router.push(href);
-    setIsOpen(false);
-  };
 
   const NavItems = ({ mobile = false }) => (
     <>
@@ -74,30 +69,33 @@ export default function Navigation({ user, onLogout }) {
         const isActive = pathname === item.href;
 
         return (
-          <Button
-            key={item.name}
-            variant={isActive ? "default" : "ghost"}
-            className={`${
-              mobile
-                ? "w-full justify-start h-12 px-4"
-                : "flex-col h-auto p-3 gap-1"
-            } ${
-              isActive
-                ? "bg-primary text-primary-foreground shadow-md"
-                : "hover:bg-accent hover:text-accent-foreground"
-            }`}
-            onClick={() => handleNavigation(item.href)}
-          >
-            <Icon className={`${mobile ? "w-5 h-5 mr-3" : "w-6 h-6"}`} />
-            <span className={`${mobile ? "text-base" : "text-xs font-medium"}`}>
-              {item.name}
-            </span>
-            {mobile && (
-              <span className="text-xs text-muted-foreground ml-auto">
-                {item.description}
+          <Link key={item.name} href={item.href}>
+            <Button
+              variant={isActive ? "default" : "ghost"}
+              className={`${
+                mobile
+                  ? "w-full justify-start h-12 px-4"
+                  : "flex-col h-auto p-3 gap-1"
+              } ${
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "hover:bg-accent hover:text-accent-foreground"
+              } transition-all duration-200 ease-in-out transform hover:scale-105 ${
+                isActive ? "scale-105" : ""
+              }`}
+              onClick={() => setIsOpen(false)}
+            >
+              <Icon className={`${mobile ? "w-5 h-5 mr-3" : "w-6 h-6"}`} />
+              <span className={`${mobile ? "text-base" : "text-xs font-medium"}`}>
+                {item.name}
               </span>
-            )}
-          </Button>
+              {mobile && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {item.description}
+                </span>
+              )}
+            </Button>
+          </Link>
         );
       })}
     </>
@@ -113,9 +111,9 @@ export default function Navigation({ user, onLogout }) {
           variant="outline"
           size="sm"
           onClick={onLogout}
-          className="ml-4 flex items-center space-x-2"
+          className="ml-4 flex items-center space-x-2 transition-all duration-200 ease-in-out transform hover:scale-105 hover:bg-destructive hover:text-destructive-foreground"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-4 h-4 transition-transform duration-200 group-hover:rotate-12" />
           <span>Logout</span>
         </Button>
       </div>
@@ -161,13 +159,13 @@ export default function Navigation({ user, onLogout }) {
               <div className="pt-4 border-t">
                 <Button
                   variant="outline"
-                  className="w-full justify-start h-12 px-4"
+                  className="w-full justify-start h-12 px-4 transition-all duration-200 ease-in-out transform hover:scale-105 hover:bg-destructive hover:text-destructive-foreground"
                   onClick={() => {
                     onLogout();
                     setIsOpen(false);
                   }}
                 >
-                  <LogOut className="w-5 h-5 mr-3" />
+                  <LogOut className="w-5 h-5 mr-3 transition-transform duration-200 group-hover:rotate-12" />
                   <span className="text-base">Logout</span>
                 </Button>
               </div>
