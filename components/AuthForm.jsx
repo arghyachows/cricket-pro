@@ -75,8 +75,8 @@ export default function AuthForm({ onLogin }) {
           <div className="mx-auto mb-4 w-16 h-16 bg-green-600 rounded-full flex items-center justify-center">
             <Trophy className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl">From the Pavilion</CardTitle>
-          <CardDescription>T20 Cricket Management Game</CardDescription>
+          <CardTitle className="text-2xl">Cricket Manager Pro</CardTitle>
+          <CardDescription>Professional Cricket Management Game</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={authMode} onValueChange={setAuthMode} className="w-full">

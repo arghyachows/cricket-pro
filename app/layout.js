@@ -4,8 +4,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'From the Pavilion - Cricket Management Game',
-  description: 'A comprehensive cricket management game where you control your own cricket club',
+  title: 'Cricket Manager Pro - Professional Cricket Management Game',
+  description: 'Professional cricket management game where you control your own cricket club, manage players, and compete in matches',
 };
 
 export default function RootLayout({ children }) {

@@ -178,7 +178,7 @@ export default function MarketplacePage() {
             <div className="flex items-center space-x-2">
               <Trophy className="w-8 h-8 text-green-600" />
               <div>
-                <h1 className="text-xl font-bold">From the Pavilion</h1>
+                <h1 className="text-xl font-bold">Cricket Manager Pro</h1>
                 <p className="text-sm text-muted-foreground">{user.team_name}</p>
               </div>
             </div>
