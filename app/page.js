@@ -15,12 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
-import { 
-  Users, 
-  Trophy, 
-  Calendar, 
-  TrendingUp, 
-  Play, 
+import DragDropLineup from '@/components/DragDropLineup';
+import {
+  Users,
+  Trophy,
+  Calendar,
+  TrendingUp,
+  Play,
   User,
   Star,
   Shield,
@@ -63,6 +64,9 @@ export default function App() {
     second_bowler_id: '',
     is_main: false
   });
+
+  // Drag and drop state for lineup creation
+  const [playingXI, setPlayingXI] = useState([]);
 
   // Marketplace state
   const [showSellDialog, setShowSellDialog] = useState(false);
@@ -273,11 +277,26 @@ export default function App() {
   };
 
   const createOrUpdateLineup = async () => {
-    if (newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id || 
+    // Validate that we have exactly 11 players in Playing XI
+    if (playingXI.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id ||
         !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name) {
       toast({
         title: "Error",
-        description: "Please fill all required fields: 11 players, captain, wicketkeeper, and 2 bowlers",
+        description: "Please fill all required fields: 11 players in Playing XI, captain, wicketkeeper, and 2 bowlers",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate that captain, wicketkeeper, and bowlers are in the Playing XI
+    const playingXIIds = playingXI.map(p => p.id);
+    if (!playingXIIds.includes(newLineup.captain_id) ||
+        !playingXIIds.includes(newLineup.wicketkeeper_id) ||
+        !playingXIIds.includes(newLineup.first_bowler_id) ||
+        !playingXIIds.includes(newLineup.second_bowler_id)) {
+      toast({
+        title: "Error",
+        description: "Captain, wicketkeeper, and bowlers must be in the Playing XI",
         variant: "destructive",
       });
       return;
@@ -285,17 +304,26 @@ export default function App() {
 
     try {
       const baseUrl = '';
-      
+
       const url = isEditingLineup ? `${baseUrl}/api/lineups/${editingLineupId}` : `${baseUrl}/api/lineups`;
       const method = isEditingLineup ? 'PUT' : 'POST';
-      
+
+      // Use only Playing XI players for the lineup
+      const allPlayers = playingXI.map(p => p.id);
+
       const response = await fetch(url, {
         method: method,
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...newLineup,
+          name: newLineup.name,
+          players: allPlayers,
+          captain_id: newLineup.captain_id,
+          wicketkeeper_id: newLineup.wicketkeeper_id,
+          first_bowler_id: newLineup.first_bowler_id,
+          second_bowler_id: newLineup.second_bowler_id,
+          is_main: newLineup.is_main,
           user_id: user.id
         }),
       });
@@ -308,7 +336,8 @@ export default function App() {
         } else {
           setLineups([...lineups, lineup]);
         }
-        
+
+        // Reset state
         setIsCreatingLineup(false);
         setIsEditingLineup(false);
         setEditingLineupId(null);
@@ -321,7 +350,8 @@ export default function App() {
           second_bowler_id: '',
           is_main: false
         });
-        
+        resetDragDropState();
+
         toast({
           title: "Success!",
           description: isEditingLineup ? "Lineup updated successfully" : "Lineup created successfully",
@@ -465,6 +495,37 @@ export default function App() {
     } else if (!isSelected) {
       setNewLineup({...newLineup, players: newLineup.players.filter(id => id !== playerId)});
     }
+  };
+
+  // Drag and drop handlers
+  const handlePlayersChange = (newPlayingXI) => {
+    setPlayingXI(newPlayingXI);
+
+    // Update the lineup state with player IDs
+    const allPlayerIds = newPlayingXI.map(p => p.id);
+    setNewLineup({...newLineup, players: allPlayerIds});
+  };
+
+  const handleRolesChange = (role, playerId) => {
+    setNewLineup({...newLineup, [role + '_id']: playerId});
+  };
+
+  // Initialize drag and drop state when creating lineup
+  const initializeDragDropState = () => {
+    if (isEditingLineup && editingLineupId) {
+      const lineup = lineups.find(l => l.id === editingLineupId);
+      if (lineup) {
+        const lineupPlayers = players.filter(p => lineup.players.includes(p.id));
+        setPlayingXI(lineupPlayers);
+      }
+    } else {
+      setPlayingXI([]);
+    }
+  };
+
+  // Reset drag and drop state when dialog closes
+  const resetDragDropState = () => {
+    setPlayingXI([]);
   };
 
   if (!user) {
@@ -1386,17 +1447,25 @@ export default function App() {
       <Toaster />
 
       {/* Lineup Creation Dialog */}
-      <Dialog open={isCreatingLineup} onOpenChange={setIsCreatingLineup}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
+      <Dialog
+        open={isCreatingLineup}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetDragDropState();
+          }
+          setIsCreatingLineup(open);
+        }}
+      >
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>{isEditingLineup ? 'Edit Lineup' : 'Create New Lineup'}</DialogTitle>
             <DialogDescription>
-              Select 11 players and assign captain, wicketkeeper, and 2 main bowlers
+              Drag players between sections or click available players to add them. Assign roles using the buttons.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+
+          <div className="flex flex-col space-y-4 overflow-hidden flex-1">
+            <div className="grid grid-cols-2 gap-4 flex-shrink-0">
               <div>
                 <Label htmlFor="lineup-name">Lineup Name</Label>
                 <Input
@@ -1416,93 +1485,30 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
-              <div>
-                <Label>Captain</Label>
-                <Select value={newLineup.captain_id} onValueChange={(value) => setNewLineup({...newLineup, captain_id: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select captain" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
-                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label>Wicketkeeper</Label>
-                <Select value={newLineup.wicketkeeper_id} onValueChange={(value) => setNewLineup({...newLineup, wicketkeeper_id: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select keeper" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
-                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label>1st Bowler</Label>
-                <Select value={newLineup.first_bowler_id} onValueChange={(value) => setNewLineup({...newLineup, first_bowler_id: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select 1st bowler" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
-                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label>2nd Bowler</Label>
-                <Select value={newLineup.second_bowler_id} onValueChange={(value) => setNewLineup({...newLineup, second_bowler_id: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select 2nd bowler" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
-                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label>Select Players ({newLineup.players.length}/11)</Label>
-              <ScrollArea className="h-64 border rounded-md p-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {players.map((player) => (
-                    <div key={player.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={player.id}
-                        checked={newLineup.players.includes(player.id)}
-                        onCheckedChange={(checked) => handlePlayerSelect(player.id, checked)}
-                        disabled={!newLineup.players.includes(player.id) && newLineup.players.length >= 11}
-                      />
-                      <Label htmlFor={player.id} className="text-sm">
-                        {player.name} (Rating: {player.rating})
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+            <div className="border rounded-lg p-4 bg-muted/20 overflow-y-auto flex-1">
+              <DragDropLineup
+                players={players}
+                playingXI={playingXI}
+                captainId={newLineup.captain_id}
+                wicketkeeperId={newLineup.wicketkeeper_id}
+                firstBowlerId={newLineup.first_bowler_id}
+                secondBowlerId={newLineup.second_bowler_id}
+                onPlayersChange={handlePlayersChange}
+                onRolesChange={handleRolesChange}
+              />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreatingLineup(false)}>
+          <DialogFooter className="flex-shrink-0">
+            <Button variant="outline" onClick={() => {
+              resetDragDropState();
+              setIsCreatingLineup(false);
+            }}>
               Cancel
             </Button>
             <Button
               onClick={createOrUpdateLineup}
-              disabled={newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id || 
+              disabled={playingXI.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id ||
                         !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name}
             >
               {isEditingLineup ? 'Update Lineup' : 'Create Lineup'}
