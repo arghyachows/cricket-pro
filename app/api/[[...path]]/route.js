@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
+import { generatePlayerName } from '@/lib/playerNames';
 
 let client = null;
 
@@ -13,10 +14,10 @@ async function getDatabase() {
 }
 
 // Helper function to generate player with realistic skills
-function generatePlayer(age = null) {
+function generatePlayer(age = null, userId = null, playerIndex = 0) {
   const ages = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
   const playerAge = age || ages[Math.floor(Math.random() * ages.length)];
-  
+
   // Skill levels mapping
   const skillLevels = [
     { name: 'Atrocious', min: 1, max: 10 },
@@ -32,31 +33,45 @@ function generatePlayer(age = null) {
     { name: 'Legendary', min: 96, max: 100 }
   ];
 
-  const generateSkill = () => Math.floor(Math.random() * 100) + 1;
-  
-  const batting = generateSkill();
-  const bowling = generateSkill();
-  const keeping = generateSkill();
-  const technique = generateSkill();
-  const fielding = generateSkill();
-  const endurance = generateSkill();
-  const power = generateSkill();
-  const captaincy = generateSkill();
+  // Create seeded random number generator for unique players per user
+  const seededRandom = (seed) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+
+  const generateSkill = (baseSeed) => {
+    if (userId) {
+      // Use userId and playerIndex to create unique seeds for each player
+      const seed = parseInt(userId.replace(/[^0-9]/g, '').slice(-8) || '12345678', 10) + playerIndex + baseSeed;
+      return Math.floor(seededRandom(seed) * 100) + 1;
+    }
+    return Math.floor(Math.random() * 100) + 1;
+  };
+
+  const batting = generateSkill(1);
+  const bowling = generateSkill(2);
+  const keeping = generateSkill(3);
+  const technique = generateSkill(4);
+  const fielding = generateSkill(5);
+  const endurance = generateSkill(6);
+  const power = generateSkill(7);
+  const captaincy = generateSkill(8);
 
   // Calculate overall rating
   const overall = Math.floor((batting + bowling + keeping + technique + fielding + endurance + power + captaincy) / 8);
 
-  const firstNames = ['James', 'Michael', 'Robert', 'John', 'David', 'William', 'Richard', 'Thomas', 'Christopher', 'Daniel', 'Matthew', 'Anthony', 'Mark', 'Donald', 'Steven', 'Paul', 'Andrew', 'Joshua', 'Kenneth', 'Kevin'];
-  const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin'];
-  
   const battingStyles = ['Right-handed', 'Left-handed'];
   const bowlerTypes = ['Right-arm fast', 'Left-arm fast', 'Right-arm medium', 'Left-arm medium', 'Right-arm spin', 'Left-arm spin', 'Wicket-keeper'];
   const formLevels = ['Excellent', 'Good', 'Average', 'Poor', 'Terrible'];
   const fatigueLevels = ['Fresh', 'Slightly tired', 'Tired', 'Very tired', 'Exhausted'];
 
+  // Generate name based on user's country selection (passed as userId parameter for seeding)
+  // For demo opponents, we'll use a default country
+  const playerCountry = userId && userId.startsWith('demo') ? 'England' : 'England'; // Default to England for now, can be enhanced later
+
   return {
     id: uuidv4(),
-    name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+    name: generatePlayerName(playerCountry, userId, playerIndex),
     age: playerAge,
     batting,
     bowling,
@@ -71,7 +86,7 @@ function generatePlayer(age = null) {
     fatigue: fatigueLevels[Math.floor(Math.random() * fatigueLevels.length)],
     wage: Math.floor(Math.random() * 50000) + 10000,
     rating: overall,
-    nationality: 'England',
+    nationality: playerCountry,
     batting_style: battingStyles[Math.floor(Math.random() * battingStyles.length)],
     bowler_type: bowlerTypes[Math.floor(Math.random() * bowlerTypes.length)],
     talents: [],
@@ -1003,9 +1018,9 @@ export async function POST(request, { params }) {
         
         // Generate starting squad (15 senior players only)
         const seniorPlayers = [];
-        
+
         for (let i = 0; i < 15; i++) {
-          const player = generatePlayer();
+          const player = generatePlayer(null, userId, i);
           player.user_id = userId;
           seniorPlayers.push(player);
         }
