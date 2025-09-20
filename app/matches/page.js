@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
+import Navigation from '@/components/Navigation';
 import {
   Users,
   Trophy,
@@ -172,45 +173,29 @@ export default function MatchesPage() {
               <Badge variant="outline" className="flex items-center space-x-1">
                 <span>{user.country}</span>
               </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  localStorage.removeItem('user');
-                  setUser(null);
-                  router.push('/');
-                }}
-              >
-                Logout
-              </Button>
             </div>
           </div>
         </div>
       </header>
 
       {/* Navigation */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">T20 Matches</h2>
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={() => router.push('/dashboard')}>
-              Dashboard
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/players')}>
-              Squad
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/lineups')}>
-              Lineups
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/league')}>
-              League
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/marketplace')}>
-              Market
-            </Button>
+      <nav className="border-b bg-muted/30">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">T20 Matches</h2>
+            <Navigation
+              user={user}
+              onLogout={() => {
+                localStorage.removeItem('user');
+                setUser(null);
+                router.push('/');
+              }}
+            />
           </div>
         </div>
+      </nav>
 
+      <div className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div></div>
           <Button onClick={createFriendlyMatch}>

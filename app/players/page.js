@@ -11,6 +11,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import Navigation from '@/components/Navigation';
 import {
   Users,
   Trophy,
@@ -191,44 +192,29 @@ export default function PlayersPage() {
               <Badge variant="outline" className="flex items-center space-x-1">
                 <span>{user.country}</span>
               </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  localStorage.removeItem('user');
-                  setUser(null);
-                  router.push('/');
-                }}
-              >
-                Logout
-              </Button>
             </div>
           </div>
         </div>
       </header>
 
       {/* Navigation */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Squad Players</h2>
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={() => router.push('/dashboard')}>
-              Dashboard
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/lineups')}>
-              Lineups
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/matches')}>
-              Matches
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/league')}>
-              League
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/marketplace')}>
-              Market
-            </Button>
+      <nav className="border-b bg-muted/30">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Squad Players</h2>
+            <Navigation
+              user={user}
+              onLogout={() => {
+                localStorage.removeItem('user');
+                setUser(null);
+                router.push('/');
+              }}
+            />
           </div>
         </div>
+      </nav>
+
+      <div className="container mx-auto px-4 py-6">
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {players.map((player) => (
