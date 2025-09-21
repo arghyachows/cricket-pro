@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Navigation from '@/components/Navigation';
+import { PlayersPageSkeleton } from '@/components/ui/skeletons';
 import {
   Users,
   Trophy,
@@ -35,6 +36,7 @@ export default function PlayersPage() {
   const [user, setUser] = useState(null);
   const [players, setPlayers] = useState([]);
   const [marketplace, setMarketplace] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showSellDialog, setShowSellDialog] = useState(false);
   const [playerToSell, setPlayerToSell] = useState(null);
   const [salePrice, setSalePrice] = useState('');
@@ -69,6 +71,7 @@ export default function PlayersPage() {
   const fetchUserData = async () => {
     if (!user) return;
 
+    setLoading(true);
     try {
       const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
         ? 'http://localhost:3000'
@@ -91,6 +94,8 @@ export default function PlayersPage() {
         description: "Failed to fetch user data",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -257,6 +262,10 @@ export default function PlayersPage() {
         </Card>
       </div>
     );
+  }
+
+  if (loading) {
+    return <PlayersPageSkeleton />;
   }
 
   return (

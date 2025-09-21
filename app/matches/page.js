@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
+import { MatchesPageSkeleton } from '@/components/ui/skeletons';
 import {
   Users,
   Trophy,
@@ -23,7 +24,7 @@ export default function MatchesPage() {
   const [user, setUser] = useState(null);
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function MatchesPage() {
   const fetchUserData = async () => {
     if (!user) return;
 
+    setLoading(true);
     try {
       const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
         ? 'http://localhost:3000'
@@ -57,6 +59,8 @@ export default function MatchesPage() {
         description: "Failed to fetch user data",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -146,6 +150,10 @@ export default function MatchesPage() {
         </Card>
       </div>
     );
+  }
+
+  if (loading) {
+    return <MatchesPageSkeleton />;
   }
 
   const upcomingMatches = matches.filter(m => m.status === 'scheduled');

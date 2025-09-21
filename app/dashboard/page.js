@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
+import { DashboardSkeleton } from '@/components/ui/skeletons';
 import {
   Users,
   Trophy,
@@ -27,7 +28,7 @@ export default function DashboardPage() {
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
   const [lineups, setLineups] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [backgroundMatch, setBackgroundMatch] = useState(null);
   const [liveMatchUpdates, setLiveMatchUpdates] = useState(new Map());
   const { toast } = useToast();
@@ -97,6 +98,7 @@ export default function DashboardPage() {
   const fetchUserData = async () => {
     if (!user) return;
 
+    setLoading(true);
     try {
       const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
         ? 'http://localhost:3000'
@@ -124,6 +126,8 @@ export default function DashboardPage() {
         description: "Failed to fetch user data",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -213,6 +217,10 @@ export default function DashboardPage() {
         </Card>
       </div>
     );
+  }
+
+  if (loading) {
+    return <DashboardSkeleton />;
   }
 
   const upcomingMatches = matches.filter(m => m.status === 'scheduled');

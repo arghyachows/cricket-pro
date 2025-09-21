@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
+import { MarketplacePageSkeleton } from '@/components/ui/skeletons';
 import {
   Trophy,
   ShoppingCart,
@@ -23,6 +24,7 @@ export default function MarketplacePage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [marketplace, setMarketplace] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showBuyDialog, setShowBuyDialog] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [bidAmount, setBidAmount] = useState('');
@@ -37,6 +39,7 @@ export default function MarketplacePage() {
   const fetchMarketplace = async () => {
     if (!user) return;
 
+    setLoading(true);
     try {
       const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
         ? 'http://localhost:3000'
@@ -54,6 +57,8 @@ export default function MarketplacePage() {
         description: "Failed to fetch marketplace",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -168,6 +173,10 @@ export default function MarketplacePage() {
         </Card>
       </div>
     );
+  }
+
+  if (loading) {
+    return <MarketplacePageSkeleton />;
   }
 
   return (

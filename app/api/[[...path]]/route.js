@@ -528,6 +528,7 @@ function simulateInnings(battingTeam, bowlingTeam, target = null, matchCondition
         bowler: bowler.name,
         commentary: ballCommentary,
         isWicket: isWicket,
+        wicketType: isWicket ? wicketType : null,
         extras: extras,
         milestone: milestone,
         currentRunRate: parseFloat(currentRunRate),
