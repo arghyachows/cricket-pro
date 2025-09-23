@@ -116,49 +116,54 @@ export default function LeaguePage() {
       {/* Navigation */}
       <nav className="border-b bg-muted/50">
         <div className="container mx-auto px-4">
-          <div className="flex space-x-1 overflow-x-auto">
+          <div className="flex space-x-1 overflow-x-auto scrollbar-hide">
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/dashboard')}
             >
               <TrendingUp className="w-4 h-4 mr-2" />
-              Dashboard
+              <span className="hidden sm:inline">Dashboard</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/squad')}
             >
               <Users className="w-4 h-4 mr-2" />
-              Squad
+              <span className="hidden sm:inline">Squad</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/lineups')}
             >
               <Play className="w-4 h-4 mr-2" />
-              Lineups
+              <span className="hidden sm:inline">Lineups</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/matches')}
             >
               <Calendar className="w-4 h-4 mr-2" />
-              Matches
+              <span className="hidden sm:inline">Matches</span>
             </Button>
             <Button
               variant="ghost"
-              className="bg-primary text-primary-foreground"
+              className="bg-primary text-primary-foreground flex-shrink-0"
               onClick={() => router.push('/league')}
             >
               <Trophy className="w-4 h-4 mr-2" />
-              League
+              <span className="hidden sm:inline">League</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/marketplace')}
             >
               <TrendingUp className="w-4 h-4 mr-2" />
-              Market
+              <span className="hidden sm:inline">Market</span>
             </Button>
           </div>
         </div>

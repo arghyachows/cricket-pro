@@ -139,3 +139,45 @@ code {
     @apply bg-background text-foreground;
     }
 }
+
+/* Mobile responsiveness improvements */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Improve touch targets on mobile */
+@media (max-width: 640px) {
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .mobile-touch-friendly {
+    padding: 12px;
+    margin: 4px;
+  }
+}
+
+/* Better table scrolling on mobile */
+@media (max-width: 768px) {
+  table {
+    font-size: 0.875rem;
+  }
+
+  th, td {
+    padding: 8px 4px;
+  }
+}
+
+/* Dialog improvements for mobile */
+@media (max-width: 640px) {
+  [role="dialog"] {
+    margin: 8px;
+    max-height: calc(100vh - 16px);
+  }
+}

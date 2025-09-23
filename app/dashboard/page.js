@@ -174,20 +174,20 @@ export default function DashboardPage() {
       <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Trophy className="w-8 h-8 text-green-600" />
-              <div>
-                <h1 className="text-xl font-bold">Cricket Manager Pro</h1>
-                <p className="text-sm text-muted-foreground">{user.team_name}</p>
+            <div className="flex items-center space-x-2 min-w-0 flex-1">
+              <Trophy className="w-8 h-8 text-green-600 flex-shrink-0" />
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold truncate">Cricket Manager Pro</h1>
+                <p className="text-sm text-muted-foreground truncate">{user.team_name}</p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <Badge variant="outline" className="flex items-center space-x-1">
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <Badge variant="outline" className="hidden sm:flex items-center space-x-1">
                 <Coins className="w-4 h-4" />
-                <span>{user.coins?.toLocaleString() || '0'} coins</span>
+                <span>{user.coins?.toLocaleString() || '0'}</span>
               </Badge>
-              <Badge variant="outline" className="flex items-center space-x-1">
+              <Badge variant="outline" className="hidden md:flex items-center space-x-1">
                 <Globe className="w-4 h-4" />
                 <span>{user.country}</span>
               </Badge>
@@ -196,7 +196,8 @@ export default function DashboardPage() {
                 size="sm"
                 onClick={handleLogout}
               >
-                Logout
+                <span className="hidden sm:inline">Logout</span>
+                <span className="sm:hidden">×</span>
               </Button>
             </div>
           </div>
@@ -206,49 +207,54 @@ export default function DashboardPage() {
       {/* Navigation */}
       <nav className="border-b bg-muted/50">
         <div className="container mx-auto px-4">
-          <div className="flex space-x-1 overflow-x-auto">
+          <div className="flex space-x-1 overflow-x-auto scrollbar-hide">
             <Button
               variant="ghost"
-              className="bg-primary text-primary-foreground"
+              className="bg-primary text-primary-foreground flex-shrink-0"
               onClick={() => router.push('/dashboard')}
             >
               <TrendingUp className="w-4 h-4 mr-2" />
-              Dashboard
+              <span className="hidden sm:inline">Dashboard</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/squad')}
             >
               <Users className="w-4 h-4 mr-2" />
-              Squad
+              <span className="hidden sm:inline">Squad</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/lineups')}
             >
               <Play className="w-4 h-4 mr-2" />
-              Lineups
+              <span className="hidden sm:inline">Lineups</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/matches')}
             >
               <Calendar className="w-4 h-4 mr-2" />
-              Matches
+              <span className="hidden sm:inline">Matches</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/league')}
             >
               <Trophy className="w-4 h-4 mr-2" />
-              League
+              <span className="hidden sm:inline">League</span>
             </Button>
             <Button
               variant="ghost"
+              className="flex-shrink-0"
               onClick={() => router.push('/marketplace')}
             >
               <TrendingUp className="w-4 h-4 mr-2" />
-              Market
+              <span className="hidden sm:inline">Market</span>
             </Button>
           </div>
         </div>
