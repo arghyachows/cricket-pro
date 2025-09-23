@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
+import Navigation from '@/components/Navigation';
 import {
   Users,
   Trophy,
@@ -225,52 +226,7 @@ export default function LeaguePage() {
       </header>
 
       {/* Navigation */}
-      <nav className="border-b bg-muted/50">
-        <div className="container mx-auto px-4">
-          <div className="flex space-x-1 overflow-x-auto scrollbar-hide">
-            <Button
-              variant="ghost"
-              className="flex-shrink-0"
-              onClick={() => router.push('/dashboard')}
-            >
-              <TrendingUp className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="flex-shrink-0"
-              onClick={() => router.push('/squad')}
-            >
-              <Users className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Squad</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="flex-shrink-0"
-              onClick={() => router.push('/lineups')}
-            >
-              <Play className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Lineups</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="bg-primary text-primary-foreground flex-shrink-0"
-              onClick={() => router.push('/journey')}
-            >
-              <Trophy className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">My Journey</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="flex-shrink-0"
-              onClick={() => router.push('/marketplace')}
-            >
-              <TrendingUp className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Market</span>
-            </Button>
-          </div>
-        </div>
-      </nav>
+      <Navigation currentPage="journey" />
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 space-y-6">

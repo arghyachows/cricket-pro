@@ -8,6 +8,8 @@ import {
   TrendingUp,
   Play,
   Calendar,
+  Coins,
+  Globe,
   ShoppingCart
 } from 'lucide-react';
 
@@ -15,12 +17,36 @@ export default function Navigation({ currentPage }) {
   const router = useRouter();
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: TrendingUp, path: '/dashboard' },
-    { id: 'squad', label: 'Squad', icon: Users, path: '/squad' },
-    { id: 'lineups', label: 'Lineups', icon: Play, path: '/lineups' },
-    { id: 'matches', label: 'Matches', icon: Calendar, path: '/matches' },
-    { id: 'league', label: 'League', icon: Trophy, path: '/league' },
-    { id: 'marketplace', label: 'Market', icon: ShoppingCart, path: '/marketplace' },
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: TrendingUp,
+      path: '/dashboard'
+    },
+    {
+      id: 'squad',
+      label: 'Squad',
+      icon: Users,
+      path: '/squad'
+    },
+    {
+      id: 'lineups',
+      label: 'Lineups',
+      icon: Play,
+      path: '/lineups'
+    },
+    {
+      id: 'journey',
+      label: 'My Journey',
+      icon: Trophy,
+      path: '/journey'
+    },
+    {
+      id: 'marketplace',
+      label: 'Market',
+      icon: ShoppingCart,
+      path: '/marketplace'
+    }
   ];
 
   return (
@@ -34,7 +60,7 @@ export default function Navigation({ currentPage }) {
             return (
               <Button
                 key={item.id}
-                variant="ghost"
+                variant={isActive ? "default" : "ghost"}
                 className={`flex-shrink-0 ${isActive ? 'bg-primary text-primary-foreground' : ''}`}
                 onClick={() => router.push(item.path)}
               >
