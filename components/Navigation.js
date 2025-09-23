@@ -25,15 +25,9 @@ export default function Navigation({ currentPage }) {
     },
     {
       id: 'squad',
-      label: 'Squad',
+      label: 'Squad & Lineups',
       icon: Users,
       path: '/squad'
-    },
-    {
-      id: 'lineups',
-      label: 'Lineups',
-      icon: Play,
-      path: '/lineups'
     },
     {
       id: 'journey',

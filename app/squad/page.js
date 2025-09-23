@@ -9,6 +9,11 @@ import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
@@ -24,17 +29,41 @@ import {
   Target,
   Zap,
   Shield,
-  Crown
+  Crown,
+  PlusCircle,
+  Edit,
+  Grid3X3,
+  List,
+  Filter
 } from 'lucide-react';
 
 export default function SquadPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [players, setPlayers] = useState([]);
+  const [lineups, setLineups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showSellDialog, setShowSellDialog] = useState(false);
   const [playerToSell, setPlayerToSell] = useState(null);
   const [salePrice, setSalePrice] = useState('');
+  const [isCreatingLineup, setIsCreatingLineup] = useState(false);
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
+  const [filters, setFilters] = useState({
+    battingStyle: 'all',
+    bowlerType: 'all',
+    form: 'all',
+    minRating: '',
+    maxRating: ''
+  });
+  const [newLineup, setNewLineup] = useState({
+    name: 'Main Lineup',
+    players: [],
+    captain_id: '',
+    wicketkeeper_id: '',
+    first_bowler_id: '',
+    second_bowler_id: '',
+    is_main: true
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -46,10 +75,10 @@ export default function SquadPage() {
     }
 
     setUser(JSON.parse(savedUser));
-    fetchPlayers();
+    fetchData();
   }, [router]);
 
-  const fetchPlayers = async () => {
+  const fetchData = async () => {
     const savedUser = JSON.parse(localStorage.getItem('user'));
     if (!savedUser) return;
 
@@ -58,18 +87,84 @@ export default function SquadPage() {
         ? 'http://localhost:3000'
         : '';
 
-      const response = await fetch(`${baseUrl}/api/players?userId=${savedUser.id}`);
-      const playersData = await response.json();
+      // Fetch players
+      const playersResponse = await fetch(`${baseUrl}/api/players?userId=${savedUser.id}`);
+      const playersData = await playersResponse.json();
       setPlayers(playersData);
+
+      // Fetch lineups
+      const lineupsResponse = await fetch(`${baseUrl}/api/lineups?userId=${savedUser.id}`);
+      const lineupsData = await lineupsResponse.json();
+      setLineups(lineupsData);
     } catch (error) {
-      console.error('Error fetching players:', error);
+      console.error('Error fetching data:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch players",
+        description: "Failed to fetch data",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const createLineup = async () => {
+    if (newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id ||
+        !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name) {
+      toast({
+        title: "Error",
+        description: "Please fill all required fields: 11 players, captain, wicketkeeper, and 2 bowlers",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+      const response = await fetch(`${baseUrl}/api/lineups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...newLineup,
+          user_id: user.id
+        }),
+      });
+
+      const lineup = await response.json();
+
+      if (response.ok) {
+        setLineups([...lineups, lineup]);
+        setIsCreatingLineup(false);
+        setNewLineup({
+          name: 'Main Lineup',
+          players: [],
+          captain_id: '',
+          wicketkeeper_id: '',
+          first_bowler_id: '',
+          second_bowler_id: '',
+          is_main: true
+        });
+        toast({
+          title: "Success!",
+          description: "Main lineup created successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: lineup.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create lineup",
+        variant: "destructive",
+      });
     }
   };
 
@@ -116,6 +211,36 @@ export default function SquadPage() {
     }
   };
 
+  const fetchPlayers = async () => {
+    const savedUser = JSON.parse(localStorage.getItem('user'));
+    if (!savedUser) return;
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+
+      const response = await fetch(`${baseUrl}/api/players?userId=${savedUser.id}`);
+      const playersData = await response.json();
+      setPlayers(playersData);
+    } catch (error) {
+      console.error('Error fetching players:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch players",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePlayerSelect = (playerId, isSelected) => {
+    if (isSelected && newLineup.players.length < 11) {
+      setNewLineup({...newLineup, players: [...newLineup.players, playerId]});
+    } else if (!isSelected) {
+      setNewLineup({...newLineup, players: newLineup.players.filter(id => id !== playerId)});
+    }
+  };
+
   const getSkillName = (value) => {
     if (value >= 96) return 'Legendary';
     if (value >= 91) return 'Exceptional';
@@ -149,6 +274,18 @@ export default function SquadPage() {
     setUser(null);
     router.push('/');
   };
+
+  // Filter players based on current filters
+  const filteredPlayers = players.filter(player => {
+    if (filters.battingStyle !== 'all' && player.batting_style !== filters.battingStyle) return false;
+    if (filters.bowlerType !== 'all' && player.bowler_type !== filters.bowlerType) return false;
+    if (filters.form !== 'all' && player.form !== filters.form) return false;
+    if (filters.minRating && player.rating < parseInt(filters.minRating)) return false;
+    if (filters.maxRating && player.rating > parseInt(filters.maxRating)) return false;
+    return true;
+  });
+
+  const mainLineup = lineups.find(lineup => lineup.is_main);
 
   if (loading) {
     return (
@@ -205,124 +342,372 @@ export default function SquadPage() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Your Squad ({players.length} players)</h2>
-          <Button
-            onClick={() => router.push('/marketplace')}
-            variant="outline"
-          >
-            <ShoppingCart className="w-4 h-4 mr-2" />
-            Browse Market
-          </Button>
-        </div>
+        <Tabs defaultValue="squad" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="squad">Squad ({players.length} players)</TabsTrigger>
+            <TabsTrigger value="lineup">Main Lineup</TabsTrigger>
+          </TabsList>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {players.map((player) => (
-            <Card key={player.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{player.name}</CardTitle>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline">{player.age} years</Badge>
-                    {player.is_for_sale && (
-                      <Badge variant="secondary">For Sale</Badge>
-                    )}
-                  </div>
-                </div>
-                <CardDescription className="flex items-center space-x-2">
-                  <span>{player.batting_style}</span>
-                  <span>•</span>
-                  <span>{player.bowler_type}</span>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="flex items-center space-x-1">
-                        <Target className="w-3 h-3" />
-                        <span>Batting</span>
-                      </span>
-                      <span className={`font-medium ${getSkillColor(player.batting)}`}>
-                        {getSkillName(player.batting)}
-                      </span>
+          <TabsContent value="squad" className="space-y-6">
+            {/* Squad Header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Your Squad</h2>
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={() => router.push('/marketplace')}
+                  variant="outline"
+                >
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  Browse Market
+                </Button>
+              </div>
+            </div>
+
+            {/* Filters and View Toggle */}
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex flex-wrap gap-2">
+                <Select value={filters.battingStyle} onValueChange={(value) => setFilters({...filters, battingStyle: value})}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Batting Style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Styles</SelectItem>
+                    <SelectItem value="Right-handed">Right-handed</SelectItem>
+                    <SelectItem value="Left-handed">Left-handed</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={filters.bowlerType} onValueChange={(value) => setFilters({...filters, bowlerType: value})}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Bowler Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="Right-arm fast">Right-arm fast</SelectItem>
+                    <SelectItem value="Left-arm fast">Left-arm fast</SelectItem>
+                    <SelectItem value="Right-arm medium">Right-arm medium</SelectItem>
+                    <SelectItem value="Left-arm medium">Left-arm medium</SelectItem>
+                    <SelectItem value="Right-arm spin">Right-arm spin</SelectItem>
+                    <SelectItem value="Left-arm spin">Left-arm spin</SelectItem>
+                    <SelectItem value="Wicket-keeper">Wicket-keeper</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={filters.form} onValueChange={(value) => setFilters({...filters, form: value})}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue placeholder="Form" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Form</SelectItem>
+                    <SelectItem value="Excellent">Excellent</SelectItem>
+                    <SelectItem value="Good">Good</SelectItem>
+                    <SelectItem value="Average">Average</SelectItem>
+                    <SelectItem value="Poor">Poor</SelectItem>
+                    <SelectItem value="Terrible">Terrible</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Input
+                  type="number"
+                  placeholder="Min Rating"
+                  value={filters.minRating}
+                  onChange={(e) => setFilters({...filters, minRating: e.target.value})}
+                  className="w-24"
+                />
+                <Input
+                  type="number"
+                  placeholder="Max Rating"
+                  value={filters.maxRating}
+                  onChange={(e) => setFilters({...filters, maxRating: e.target.value})}
+                  className="w-24"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant={viewMode === 'cards' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('cards')}
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'table' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('table')}
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Squad Display */}
+            {viewMode === 'cards' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredPlayers.map((player) => (
+                  <Card key={player.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">{player.name}</CardTitle>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline">{player.age} years</Badge>
+                          {player.is_for_sale && (
+                            <Badge variant="secondary">For Sale</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <CardDescription className="flex items-center space-x-2">
+                        <span>{player.batting_style}</span>
+                        <span>•</span>
+                        <span>{player.bowler_type}</span>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="flex items-center space-x-1">
+                              <Target className="w-3 h-3" />
+                              <span>Batting</span>
+                            </span>
+                            <span className={`font-medium ${getSkillColor(player.batting)}`}>
+                              {getSkillName(player.batting)}
+                            </span>
+                          </div>
+                          <Progress value={player.batting} className="h-2" />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="flex items-center space-x-1">
+                              <Zap className="w-3 h-3" />
+                              <span>Bowling</span>
+                            </span>
+                            <span className={`font-medium ${getSkillColor(player.bowling)}`}>
+                              {getSkillName(player.bowling)}
+                            </span>
+                          </div>
+                          <Progress value={player.bowling} className="h-2" />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="flex items-center space-x-1">
+                              <Shield className="w-3 h-3" />
+                              <span>Keeping</span>
+                            </span>
+                            <span className={`font-medium ${getSkillColor(player.keeping)}`}>
+                              {getSkillName(player.keeping)}
+                            </span>
+                          </div>
+                          <Progress value={player.keeping} className="h-2" />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="flex items-center space-x-1">
+                              <Crown className="w-3 h-3" />
+                              <span>Captaincy</span>
+                            </span>
+                            <span className={`font-medium ${getSkillColor(player.captaincy)}`}>
+                              {getSkillName(player.captaincy)}
+                            </span>
+                          </div>
+                          <Progress value={player.captaincy} className="h-2" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <div className="flex items-center space-x-2">
+                          <Badge variant={player.form === 'Excellent' ? 'default' :
+                                        player.form === 'Good' ? 'secondary' : 'outline'}>
+                            {player.form}
+                          </Badge>
+                          <Badge variant="outline">
+                            Rating: {player.rating}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline" className="flex items-center space-x-1">
+                            <Coins className="w-3 h-3" />
+                            <span>{player.market_value?.toLocaleString()}</span>
+                          </Badge>
+                          {!player.is_for_sale && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setPlayerToSell(player);
+                                setShowSellDialog(true);
+                              }}
+                            >
+                              Sell
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Age</TableHead>
+                        <TableHead>Style</TableHead>
+                        <TableHead>Rating</TableHead>
+                        <TableHead>Form</TableHead>
+                        <TableHead>Batting</TableHead>
+                        <TableHead>Bowling</TableHead>
+                        <TableHead>Keeping</TableHead>
+                        <TableHead>Captaincy</TableHead>
+                        <TableHead>Value</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPlayers.map((player) => (
+                        <TableRow key={player.id}>
+                          <TableCell className="font-medium">
+                            <div>
+                              <div>{player.name}</div>
+                              {player.is_for_sale && (
+                                <Badge variant="secondary" className="text-xs">For Sale</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{player.age}</TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>{player.batting_style}</div>
+                              <div className="text-muted-foreground">{player.bowler_type}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{player.rating}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={player.form === 'Excellent' ? 'default' :
+                                          player.form === 'Good' ? 'secondary' : 'outline'}>
+                              {player.form}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-sm ${getSkillColor(player.batting)}`}>
+                              {getSkillName(player.batting)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-sm ${getSkillColor(player.bowling)}`}>
+                              {getSkillName(player.bowling)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-sm ${getSkillColor(player.keeping)}`}>
+                              {getSkillName(player.keeping)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-sm ${getSkillColor(player.captaincy)}`}>
+                              {getSkillName(player.captaincy)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="flex items-center space-x-1 w-fit">
+                              <Coins className="w-3 h-3" />
+                              <span>{player.market_value?.toLocaleString()}</span>
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {!player.is_for_sale && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setPlayerToSell(player);
+                                  setShowSellDialog(true);
+                                }}
+                              >
+                                Sell
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="lineup" className="space-y-6">
+            {/* Lineup Header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Main Lineup</h2>
+              {!mainLineup && (
+                <Button onClick={() => setIsCreatingLineup(true)}>
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  Create Main Lineup
+                </Button>
+              )}
+            </div>
+
+            {mainLineup ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{mainLineup.name}</CardTitle>
+                  <Badge variant="default">Main Lineup</Badge>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <strong>Captain:</strong> {players.find(p => p.id === mainLineup.captain_id)?.name || 'Unknown'}
+                      </div>
+                      <div>
+                        <strong>Wicketkeeper:</strong> {players.find(p => p.id === mainLineup.wicketkeeper_id)?.name || 'Unknown'}
+                      </div>
+                      <div>
+                        <strong>1st Bowler:</strong> {players.find(p => p.id === mainLineup.first_bowler_id)?.name || 'Unknown'}
+                      </div>
+                      <div>
+                        <strong>2nd Bowler:</strong> {players.find(p => p.id === mainLineup.second_bowler_id)?.name || 'Unknown'}
+                      </div>
                     </div>
-                    <Progress value={player.batting} className="h-2" />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="flex items-center space-x-1">
-                        <Zap className="w-3 h-3" />
-                        <span>Bowling</span>
-                      </span>
-                      <span className={`font-medium ${getSkillColor(player.bowling)}`}>
-                        {getSkillName(player.bowling)}
-                      </span>
+                    <div>
+                      <strong>Players ({mainLineup.players?.length || 0}/11):</strong>
+                      <div className="mt-2 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {mainLineup.players?.map(playerId => {
+                          const player = players.find(p => p.id === playerId);
+                          return player ? (
+                            <Badge key={playerId} variant="outline" className="justify-start">
+                              {player.name}
+                            </Badge>
+                          ) : null;
+                        })}
+                      </div>
                     </div>
-                    <Progress value={player.bowling} className="h-2" />
                   </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="flex items-center space-x-1">
-                        <Shield className="w-3 h-3" />
-                        <span>Keeping</span>
-                      </span>
-                      <span className={`font-medium ${getSkillColor(player.keeping)}`}>
-                        {getSkillName(player.keeping)}
-                      </span>
-                    </div>
-                    <Progress value={player.keeping} className="h-2" />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="flex items-center space-x-1">
-                        <Crown className="w-3 h-3" />
-                        <span>Captaincy</span>
-                      </span>
-                      <span className={`font-medium ${getSkillColor(player.captaincy)}`}>
-                        {getSkillName(player.captaincy)}
-                      </span>
-                    </div>
-                    <Progress value={player.captaincy} className="h-2" />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <div className="flex items-center space-x-2">
-                    <Badge variant={player.form === 'Excellent' ? 'default' :
-                                  player.form === 'Good' ? 'secondary' : 'outline'}>
-                      {player.form}
-                    </Badge>
-                    <Badge variant="outline">
-                      Rating: {player.rating}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="flex items-center space-x-1">
-                      <Coins className="w-3 h-3" />
-                      <span>{player.market_value?.toLocaleString()}</span>
-                    </Badge>
-                    {!player.is_for_sale && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setPlayerToSell(player);
-                          setShowSellDialog(true);
-                        }}
-                      >
-                        Sell
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Edit className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground mb-4">No main lineup set</p>
+                  <Button onClick={() => setIsCreatingLineup(true)}>
+                    Create Main Lineup
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Sell Player Dialog */}
@@ -361,6 +746,133 @@ export default function SquadPage() {
             </Button>
             <Button onClick={sellPlayer} disabled={!salePrice}>
               List for Sale
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lineup Creation Dialog */}
+      <Dialog open={isCreatingLineup} onOpenChange={setIsCreatingLineup}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Create Main Lineup</DialogTitle>
+            <DialogDescription>
+              Select 11 players and assign captain, wicketkeeper, and 2 main bowlers
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="lineup-name">Lineup Name</Label>
+                <Input
+                  id="lineup-name"
+                  value={newLineup.name}
+                  onChange={(e) => setNewLineup({...newLineup, name: e.target.value})}
+                  placeholder="e.g., Main T20 Team"
+                />
+              </div>
+              <div className="flex items-center space-x-2 pt-6">
+                <Checkbox
+                  id="is-main"
+                  checked={newLineup.is_main}
+                  onCheckedChange={(checked) => setNewLineup({...newLineup, is_main: checked})}
+                  disabled
+                />
+                <Label htmlFor="is-main">Set as main lineup (required)</Label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <Label>Captain</Label>
+                <Select value={newLineup.captain_id} onValueChange={(value) => setNewLineup({...newLineup, captain_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select captain" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Wicketkeeper</Label>
+                <Select value={newLineup.wicketkeeper_id} onValueChange={(value) => setNewLineup({...newLineup, wicketkeeper_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select keeper" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>1st Bowler</Label>
+                <Select value={newLineup.first_bowler_id} onValueChange={(value) => setNewLineup({...newLineup, first_bowler_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select 1st bowler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>2nd Bowler</Label>
+                <Select value={newLineup.second_bowler_id} onValueChange={(value) => setNewLineup({...newLineup, second_bowler_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select 2nd bowler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Select Players ({newLineup.players.length}/11)</Label>
+              <ScrollArea className="h-64 border rounded-md p-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {players.map((player) => (
+                    <div key={player.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={player.id}
+                        checked={newLineup.players.includes(player.id)}
+                        onCheckedChange={(checked) => handlePlayerSelect(player.id, checked)}
+                        disabled={!newLineup.players.includes(player.id) && newLineup.players.length >= 11}
+                      />
+                      <Label htmlFor={player.id} className="text-sm">
+                        {player.name} (Rating: {player.rating})
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreatingLineup(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={createLineup}
+              disabled={newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id ||
+                        !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name}
+            >
+              Create Main Lineup
             </Button>
           </DialogFooter>
         </DialogContent>
