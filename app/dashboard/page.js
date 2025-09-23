@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const [marketplace, setMarketplace] = useState([]);
   const [tournamentStatus, setTournamentStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [quickSimLoading, setQuickSimLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -214,6 +215,51 @@ export default function DashboardPage() {
         description: "Failed to simulate match",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleQuickSim = async () => {
+    if (!user) return;
+
+    setQuickSimLoading(true);
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+
+      const response = await fetch(`${baseUrl}/api/matches/quick-sim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Quick Simulation Complete",
+          description: `Simulated ${result.simulated} matches`,
+        });
+        fetchUserData();
+        fetchTournamentStatus();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to perform quick simulation",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error performing quick simulation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to perform quick simulation",
+        variant: "destructive",
+      });
+    } finally {
+      setQuickSimLoading(false);
     }
   };
 
@@ -480,12 +526,26 @@ export default function DashboardPage() {
                       <span className="text-xs">Quick Match</span>
                     </Button>
                     <Button
+                      onClick={handleQuickSim}
+                      disabled={quickSimLoading}
+                      className="h-20 flex flex-col items-center justify-center space-y-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 disabled:opacity-50"
+                    >
+                      {quickSimLoading ? (
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                      ) : (
+                        <Zap className="w-6 h-6" />
+                      )}
+                      <span className="text-xs">{quickSimLoading ? 'Simulating...' : 'Quick Sim'}</span>
+                    </Button>
+                  </div>
+                  <div className="mt-4 pt-4 border-t">
+                    <Button
                       onClick={() => router.push('/journey')}
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
+                      className="w-full flex items-center justify-center space-x-2"
                       variant="outline"
                     >
-                      <Award className="w-6 h-6" />
-                      <span className="text-xs">My Journey</span>
+                      <Award className="w-4 h-4" />
+                      <span>My Journey</span>
                     </Button>
                   </div>
                 </CardContent>

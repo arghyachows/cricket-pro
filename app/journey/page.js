@@ -27,6 +27,7 @@ export default function LeaguePage() {
   const [leagueTable, setLeagueTable] = useState([]);
   const [tournamentStatus, setTournamentStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [quickSimLoading, setQuickSimLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -166,6 +167,51 @@ export default function LeaguePage() {
         description: "Failed to simulate match",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleQuickSim = async () => {
+    if (!user) return;
+
+    setQuickSimLoading(true);
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+
+      const response = await fetch(`${baseUrl}/api/matches/quick-sim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Quick Simulation Complete",
+          description: `Simulated ${result.simulated} matches`,
+        });
+        fetchLeagueTable();
+        fetchTournamentStatus();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to perform quick simulation",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error performing quick simulation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to perform quick simulation",
+        variant: "destructive",
+      });
+    } finally {
+      setQuickSimLoading(false);
     }
   };
 
@@ -331,6 +377,14 @@ export default function LeaguePage() {
                           {tournamentStatus.previousMatchesPending} previous match{tournamentStatus.previousMatchesPending > 1 ? 'es' : ''} must be completed first.
                         </p>
                         <Badge variant="secondary">Waiting for previous matches</Badge>
+                        <Button onClick={handleQuickSim} disabled={quickSimLoading} variant="outline" className="flex items-center space-x-2 mt-2 disabled:opacity-50">
+                          {quickSimLoading ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                          ) : (
+                            <SkipForward className="w-4 h-4" />
+                          )}
+                          <span>{quickSimLoading ? 'Simulating...' : 'Quick Sim All Pending Matches'}</span>
+                        </Button>
                       </div>
                     )}
                   </div>
