@@ -31,6 +31,8 @@ export default function MatchSimulation() {
   const router = useRouter();
   const { toast } = useToast();
   const [match, setMatch] = useState(null);
+  const [homeTeam, setHomeTeam] = useState(null);
+  const [awayTeam, setAwayTeam] = useState(null);
   const [commentary, setCommentary] = useState([]);
   const [currentCommentaryIndex, setCurrentCommentaryIndex] = useState(0);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -52,6 +54,13 @@ export default function MatchSimulation() {
   const [requiredRunRate, setRequiredRunRate] = useState(null);
   const [target, setTarget] = useState(null);
   const [ballsLeft, setBallsLeft] = useState(null);
+  const [currentInnings, setCurrentInnings] = useState(1);
+  const [battingTeam, setBattingTeam] = useState(null);
+  const [bowlingTeam, setBowlingTeam] = useState(null);
+  const [homeScore, setHomeScore] = useState(0);
+  const [awayScore, setAwayScore] = useState(0);
+  const [homeWickets, setHomeWickets] = useState(0);
+  const [awayWickets, setAwayWickets] = useState(0);
 
   useEffect(() => {
     if (params.id) {
@@ -67,15 +76,19 @@ export default function MatchSimulation() {
 
   const fetchMatch = async () => {
     try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000' 
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
         : '';
-      
+
       const response = await fetch(`${baseUrl}/api/matches/${params.id}`);
       const matchData = await response.json();
-      
+
       if (response.ok) {
         setMatch(matchData);
+
+        // Fetch team names
+        await fetchTeamNames(matchData.home_team_id, matchData.away_team_id);
+
         if (matchData.status === 'completed') {
           setSimulationComplete(true);
           setCommentary(matchData.commentary || []);
@@ -98,6 +111,33 @@ export default function MatchSimulation() {
     }
   };
 
+  const fetchTeamNames = async (homeTeamId, awayTeamId) => {
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+
+      // Fetch home team info
+      const homeResponse = await fetch(`${baseUrl}/api/users/${homeTeamId}`);
+      if (homeResponse.ok) {
+        const homeTeamData = await homeResponse.json();
+        setHomeTeam(homeTeamData);
+      }
+
+      // Fetch away team info
+      const awayResponse = await fetch(`${baseUrl}/api/users/${awayTeamId}`);
+      if (awayResponse.ok) {
+        const awayTeamData = await awayResponse.json();
+        setAwayTeam(awayTeamData);
+      }
+    } catch (error) {
+      console.error('Error fetching team names:', error);
+      // Set default names if fetch fails
+      setHomeTeam({ team_name: 'Home Team' });
+      setAwayTeam({ team_name: 'Away Team' });
+    }
+  };
+
   const startSimulation = async () => {
     if (!match) return;
     
@@ -108,7 +148,13 @@ export default function MatchSimulation() {
         ? 'http://localhost:3000' 
         : '';
       
-      const response = await fetch(`${baseUrl}/api/matches/${params.id}/simulate`);
+      const response = await fetch(`${baseUrl}/api/matches/${params.id}/simulate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}) // Empty body for now, can add parameters later if needed
+      });
       const result = await response.json();
       
       if (response.ok) {
@@ -142,7 +188,8 @@ export default function MatchSimulation() {
 
   const simulateLiveCommentary = (fullCommentary) => {
     let index = 0;
-    
+    let firstInningsComplete = false;
+
     const addNextComment = () => {
       if (index >= fullCommentary.length || isPaused) {
         if (index >= fullCommentary.length) {
@@ -155,9 +202,29 @@ export default function MatchSimulation() {
         }
         return;
       }
-      
+
       const comment = fullCommentary[index];
-      
+
+      // Determine which innings we're in and update team scores
+      if (!firstInningsComplete) {
+        // First innings - home team batting
+        setCurrentInnings(1);
+        setHomeScore(comment.totalRuns);
+        setHomeWickets(comment.wickets);
+      } else {
+        // Second innings - away team batting
+        setCurrentInnings(2);
+        setAwayScore(comment.totalRuns);
+        setAwayWickets(comment.wickets);
+      }
+
+      // Check if first innings is complete (when we reach the target setting point)
+      if (comment.requiredRunRate && !firstInningsComplete && matchResult) {
+        firstInningsComplete = true;
+        setHomeScore(matchResult.homeScore || comment.totalRuns); // Set final first innings score
+        setHomeWickets(matchResult.homeWickets || comment.wickets);
+      }
+
       // Update current match state
       setCurrentRuns(comment.totalRuns);
       setCurrentWickets(comment.wickets);
@@ -166,28 +233,28 @@ export default function MatchSimulation() {
       setCurrentRunRate(comment.currentRunRate || 0);
       setRequiredRunRate(comment.requiredRunRate);
       setBallsLeft(comment.ballsLeft);
-      
+
       // Add comment to display
       setCommentary(prev => [...prev, comment]);
       setCurrentCommentaryIndex(index + 1);
-      
+
       // Show special event popup
       if (comment.isWicket || comment.runs === 4 || comment.runs === 6) {
         setCurrentEvent(comment);
         setShowEventPopup(true);
-        
+
         // Auto-hide popup after 2 seconds
         setTimeout(() => {
           setShowEventPopup(false);
         }, 2000);
       }
-      
+
       index++;
-      
+
       // Continue with next comment after 0.5 seconds
       setTimeout(addNextComment, 500);
     };
-    
+
     addNextComment();
   };
 
@@ -240,7 +307,9 @@ export default function MatchSimulation() {
                 Back
               </Button>
               <div>
-                <h1 className="text-xl font-bold">Match Simulation</h1>
+                <h1 className="text-xl font-bold">
+                  {homeTeam?.team_name || 'Home Team'} vs {awayTeam?.team_name || 'Away Team'}
+                </h1>
                 <p className="text-sm text-muted-foreground">{match.match_type} Match</p>
               </div>
             </div>
@@ -280,85 +349,155 @@ export default function MatchSimulation() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Match Conditions */}
-                <div className="flex justify-between items-center text-xs p-2 bg-muted/30 rounded">
-                  <span>{match.weather}</span>
-                  <span>•</span>
-                  <span>{match.pitch_type} Pitch</span>
+                {/* Match Info */}
+                <div className="space-y-2">
+                  <div className="text-center">
+                    <h3 className="font-semibold text-lg">{match.match_type} Match</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(match.scheduled_time).toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+
+                  {/* Match Conditions */}
+                  <div className="flex justify-between items-center text-xs p-2 bg-muted/30 rounded">
+                    <span>🌤️ {match.weather}</span>
+                    <span>•</span>
+                    <span>🏏 {match.pitch_type} Pitch</span>
+                  </div>
                 </div>
 
-                {/* Current Score */}
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600">
-                    {currentRuns}/{currentWickets}
+                {/* Team Scores */}
+                <div className="space-y-3">
+                  {/* Home Team */}
+                  <div className={`p-3 rounded-lg border-2 ${currentInnings === 1 ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        <span className="font-medium">{homeTeam?.team_name || 'Home Team'}</span>
+                        {currentInnings === 1 && <Badge variant="secondary" className="text-xs">Batting</Badge>}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold">{homeScore}/{homeWickets}</div>
+                        {matchResult && (
+                          <div className="text-xs text-muted-foreground">
+                            ({matchResult.homeOvers} overs)
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {currentOver > 0 && `${currentOver}.${currentBall} overs`}
+
+                  {/* Away Team */}
+                  <div className={`p-3 rounded-lg border-2 ${currentInnings === 2 ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="font-medium">{awayTeam?.team_name || 'Away Team'}</span>
+                        {currentInnings === 2 && <Badge variant="secondary" className="text-xs">Batting</Badge>}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold">{awayScore}/{awayWickets}</div>
+                        {matchResult && (
+                          <div className="text-xs text-muted-foreground">
+                            ({matchResult.awayOvers} overs)
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                
-                {/* Run Rates */}
-                {(currentRunRate > 0 || requiredRunRate) && (
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-center p-2 bg-blue-50 rounded">
-                      <div className="font-semibold text-blue-600">{currentRunRate.toFixed(2)}</div>
-                      <div className="text-xs text-blue-500">Current RR</div>
+
+                {/* Current Innings Details */}
+                {isSimulating && (
+                  <div className="space-y-3 p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border">
+                    <div className="text-center">
+                      <h4 className="font-semibold text-sm mb-2">
+                        {currentInnings === 1 ? 'First Innings' : 'Second Innings'}
+                      </h4>
+                      <div className="text-2xl font-bold text-green-600">
+                        {currentRuns}/{currentWickets}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Over {currentOver}.{currentBall} • {Math.floor((currentOver * 6 + currentBall) / 6 * 10) / 10} overs
+                      </div>
                     </div>
-                    {requiredRunRate && (
-                      <div className="text-center p-2 bg-orange-50 rounded">
-                        <div className={`font-semibold ${requiredRunRate > currentRunRate + 2 ? 'text-red-600' : 'text-orange-600'}`}>
-                          {requiredRunRate.toFixed(2)}
+
+                    {/* Run Rates */}
+                    {(currentRunRate > 0 || requiredRunRate) && (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="text-center p-2 bg-blue-100 rounded">
+                          <div className="font-semibold text-blue-700">{currentRunRate.toFixed(2)}</div>
+                          <div className="text-xs text-blue-600">Current RR</div>
                         </div>
-                        <div className="text-xs text-orange-500">Required RR</div>
+                        {requiredRunRate && (
+                          <div className="text-center p-2 bg-orange-100 rounded">
+                            <div className={`font-semibold ${requiredRunRate > currentRunRate + 2 ? 'text-red-700' : 'text-orange-700'}`}>
+                              {requiredRunRate.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-orange-600">Required RR</div>
+                          </div>
+                        )}
                       </div>
                     )}
+
+                    {/* Target Information */}
+                    {target && ballsLeft && (
+                      <div className="text-center p-2 bg-gray-100 rounded text-sm">
+                        <div className="font-medium text-gray-800">
+                          Need {Math.max(0, target - currentRuns)} runs from {ballsLeft} balls
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Target: {target}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Match Progress */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-700">Match Progress</span>
+                        <span className="text-gray-600">{commentary.length} balls</span>
+                      </div>
+                      <Progress
+                        value={(commentary.length / (matchResult?.commentary?.length || 1)) * 100}
+                        className="h-2"
+                      />
+                    </div>
                   </div>
                 )}
 
-                {/* Target Information */}
-                {target && ballsLeft && (
-                  <div className="text-center p-2 bg-gray-50 rounded text-sm">
-                    <div className="font-medium">
-                      Need {Math.max(0, target - currentRuns)} runs from {ballsLeft} balls
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Target: {target}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Match Progress */}
-                {isSimulating && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Match Progress</span>
-                      <span>{commentary.length} balls</span>
-                    </div>
-                    <Progress 
-                      value={(commentary.length / (matchResult?.commentary?.length || 1)) * 100} 
-                      className="h-2"
-                    />
-                  </div>
-                )}
-                
                 {/* Final Result */}
                 {simulationComplete && matchResult && (
-                  <div className="space-y-2 text-center pt-4 border-t">
-                    <h3 className="font-semibold text-lg">Match Result</h3>
+                  <div className="space-y-3 text-center pt-4 border-t">
+                    <h3 className="font-semibold text-lg flex items-center justify-center space-x-2">
+                      <Trophy className="w-5 h-5 text-yellow-500" />
+                      <span>Match Result</span>
+                    </h3>
                     <div className="space-y-2">
-                      <div className="text-sm">
-                        <strong>Home:</strong> {matchResult.homeScore} ({matchResult.homeOvers} overs)
+                      <div className="p-2 bg-blue-50 rounded">
+                        <div className="text-sm font-medium">
+                          Home: {matchResult.homeScore} ({matchResult.homeOvers} overs)
+                        </div>
                       </div>
-                      <div className="text-sm">
-                        <strong>Away:</strong> {matchResult.awayScore} ({matchResult.awayOvers} overs)
+                      <div className="p-2 bg-green-50 rounded">
+                        <div className="text-sm font-medium">
+                          Away: {matchResult.awayScore} ({matchResult.awayOvers} overs)
+                        </div>
                       </div>
                       {matchResult.winMargin && matchResult.winType && (
-                        <div className="text-sm font-medium text-green-600">
-                          Won by {matchResult.winMargin} {matchResult.winType}
+                        <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                          <div className="text-sm font-bold text-yellow-800">
+                            🏆 Won by {matchResult.winMargin} {matchResult.winType}
+                          </div>
                         </div>
                       )}
                     </div>
-                    <Badge variant="default" className="mt-2">
+                    <Badge variant="default" className="mt-2 bg-green-600">
                       Match Complete
                     </Badge>
                   </div>
@@ -482,79 +621,131 @@ export default function MatchSimulation() {
                     </div>
                   </ScrollArea>
                 ) : (
-                  // Scorecard View
+                  // Enhanced Scorecard View
                   <ScrollArea className="h-[500px] p-4">
                     {matchResult && matchResult.firstInnings && matchResult.secondInnings ? (
-                      <div className="space-y-6">
+                      <div className="space-y-8">
+                        {/* Match Summary */}
+                        <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg border">
+                          <h3 className="font-bold text-lg mb-3 text-center">Match Summary</h3>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="text-center">
+                              <div className="font-semibold text-blue-700">{homeTeam?.team_name || 'Home Team'}</div>
+                              <div className="text-lg font-bold">{matchResult.homeScore}</div>
+                              <div className="text-xs text-muted-foreground">({matchResult.homeOvers} overs)</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-semibold text-green-700">{awayTeam?.team_name || 'Away Team'}</div>
+                              <div className="text-lg font-bold">{matchResult.awayScore}</div>
+                              <div className="text-xs text-muted-foreground">({matchResult.awayOvers} overs)</div>
+                            </div>
+                          </div>
+                          {matchResult.winMargin && matchResult.winType && (
+                            <div className="text-center mt-3 p-2 bg-yellow-100 rounded">
+                              <div className="font-bold text-yellow-800">
+                                🏆 {matchResult.winner === match.home_team_id ? (homeTeam?.team_name || 'Home Team') : (awayTeam?.team_name || 'Away Team')} won by {matchResult.winMargin} {matchResult.winType}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         {/* First Innings */}
-                        <div>
-                          <h3 className="font-semibold text-lg mb-3 flex items-center">
-                            <Trophy className="w-5 h-5 mr-2" />
-                            First Innings - {matchResult.homeScore}
-                          </h3>
-                          
+                        <div className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-lg flex items-center">
+                              <div className="w-4 h-4 bg-blue-500 rounded-full mr-2"></div>
+                              First Innings - {homeTeam?.team_name || 'Home Team'}
+                            </h3>
+                            <div className="text-right">
+                              <div className="text-xl font-bold text-blue-700">{matchResult.homeScore}/{matchResult.homeWickets}</div>
+                              <div className="text-sm text-muted-foreground">({matchResult.homeOvers} overs, RR: {matchResult.firstInnings.runRate})</div>
+                            </div>
+                          </div>
+
                           {/* Batting Scorecard */}
-                          <div className="mb-4">
-                            <h4 className="font-medium mb-2">Batting</h4>
+                          <div className="mb-6">
+                            <h4 className="font-semibold mb-3 flex items-center">
+                              <Users className="w-4 h-4 mr-2" />
+                              Batting
+                            </h4>
                             <div className="overflow-x-auto">
-                              <table className="w-full text-sm border">
+                              <table className="w-full text-sm border rounded">
                                 <thead>
-                                  <tr className="border-b bg-muted/30">
-                                    <th className="text-left p-2">Batsman</th>
-                                    <th className="text-center p-2">R</th>
-                                    <th className="text-center p-2">B</th>
-                                    <th className="text-center p-2">4s</th>
-                                    <th className="text-center p-2">6s</th>
-                                    <th className="text-center p-2">SR</th>
+                                  <tr className="border-b bg-blue-50">
+                                    <th className="text-left p-3 font-semibold">Batsman</th>
+                                    <th className="text-center p-3 font-semibold">R</th>
+                                    <th className="text-center p-3 font-semibold">B</th>
+                                    <th className="text-center p-3 font-semibold">4s</th>
+                                    <th className="text-center p-3 font-semibold">6s</th>
+                                    <th className="text-center p-3 font-semibold">SR</th>
+                                    <th className="text-center p-3 font-semibold">Status</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {matchResult.firstInnings.batsmanScores?.map((batsman, index) => (
-                                    <tr key={index} className="border-b">
-                                      <td className="p-2">
-                                        {batsman.name}
-                                        {batsman.out && (
-                                          <div className="text-xs text-red-600">
+                                    <tr key={index} className={`border-b ${batsman.out ? 'bg-red-50' : 'bg-green-50'}`}>
+                                      <td className="p-3 font-medium">{batsman.name}</td>
+                                      <td className="text-center p-3 font-bold text-lg">{batsman.runs}</td>
+                                      <td className="text-center p-3">{batsman.balls}</td>
+                                      <td className="text-center p-3">{batsman.fours}</td>
+                                      <td className="text-center p-3">{batsman.sixes}</td>
+                                      <td className="text-center p-3">{batsman.strikeRate}</td>
+                                      <td className="text-center p-3">
+                                        {batsman.out ? (
+                                          <Badge variant="destructive" className="text-xs">
                                             {batsman.outType} b {batsman.bowler}
-                                          </div>
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="default" className="text-xs bg-green-600">
+                                            Not Out
+                                          </Badge>
                                         )}
                                       </td>
-                                      <td className="text-center p-2 font-medium">{batsman.runs}</td>
-                                      <td className="text-center p-2">{batsman.balls}</td>
-                                      <td className="text-center p-2">{batsman.fours}</td>
-                                      <td className="text-center p-2">{batsman.sixes}</td>
-                                      <td className="text-center p-2">{batsman.strikeRate}</td>
                                     </tr>
                                   ))}
                                 </tbody>
+                                <tfoot>
+                                  <tr className="border-t bg-blue-100 font-semibold">
+                                    <td className="p-3">Total</td>
+                                    <td className="text-center p-3 font-bold">{matchResult.homeScore}</td>
+                                    <td className="text-center p-3" colSpan="6">
+                                      {matchResult.homeWickets} wickets • {matchResult.homeOvers} overs • RR: {matchResult.firstInnings.runRate}
+                                    </td>
+                                  </tr>
+                                </tfoot>
                               </table>
                             </div>
                           </div>
 
                           {/* Bowling Figures */}
-                          <div className="mb-4">
-                            <h4 className="font-medium mb-2">Bowling</h4>
+                          <div>
+                            <h4 className="font-semibold mb-3 flex items-center">
+                              <Target className="w-4 h-4 mr-2" />
+                              Bowling
+                            </h4>
                             <div className="overflow-x-auto">
-                              <table className="w-full text-sm border">
+                              <table className="w-full text-sm border rounded">
                                 <thead>
-                                  <tr className="border-b bg-muted/30">
-                                    <th className="text-left p-2">Bowler</th>
-                                    <th className="text-center p-2">O</th>
-                                    <th className="text-center p-2">M</th>
-                                    <th className="text-center p-2">R</th>
-                                    <th className="text-center p-2">W</th>
-                                    <th className="text-center p-2">Econ</th>
+                                  <tr className="border-b bg-red-50">
+                                    <th className="text-left p-3 font-semibold">Bowler</th>
+                                    <th className="text-center p-3 font-semibold">O</th>
+                                    <th className="text-center p-3 font-semibold">M</th>
+                                    <th className="text-center p-3 font-semibold">R</th>
+                                    <th className="text-center p-3 font-semibold">W</th>
+                                    <th className="text-center p-3 font-semibold">Econ</th>
+                                    <th className="text-center p-3 font-semibold">Extras</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {matchResult.firstInnings.bowlingFigures?.map((bowler, index) => (
                                     <tr key={index} className="border-b">
-                                      <td className="p-2">{bowler.name}</td>
-                                      <td className="text-center p-2">{bowler.overs}</td>
-                                      <td className="text-center p-2">{bowler.maidens}</td>
-                                      <td className="text-center p-2">{bowler.runs}</td>
-                                      <td className="text-center p-2 font-medium">{bowler.wickets}</td>
-                                      <td className="text-center p-2">{bowler.economy}</td>
+                                      <td className="p-3 font-medium">{bowler.name}</td>
+                                      <td className="text-center p-3">{bowler.overs}</td>
+                                      <td className="text-center p-3">{bowler.maidens}</td>
+                                      <td className="text-center p-3">{bowler.runs}</td>
+                                      <td className="text-center p-3 font-bold text-red-600">{bowler.wickets}</td>
+                                      <td className="text-center p-3">{bowler.economy}</td>
+                                      <td className="text-center p-3">-</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -564,78 +755,152 @@ export default function MatchSimulation() {
                         </div>
 
                         {/* Second Innings */}
-                        <div>
-                          <h3 className="font-semibold text-lg mb-3 flex items-center">
-                            <Trophy className="w-5 h-5 mr-2" />
-                            Second Innings - {matchResult.awayScore}
-                          </h3>
-                          
+                        <div className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-lg flex items-center">
+                              <div className="w-4 h-4 bg-green-500 rounded-full mr-2"></div>
+                              Second Innings - {awayTeam?.team_name || 'Away Team'}
+                            </h3>
+                            <div className="text-right">
+                              <div className="text-xl font-bold text-green-700">{matchResult.awayScore}/{matchResult.awayWickets}</div>
+                              <div className="text-sm text-muted-foreground">({matchResult.awayOvers} overs, RR: {matchResult.secondInnings.runRate})</div>
+                            </div>
+                          </div>
+
+                          {/* Target Info */}
+                          {matchResult.target && (
+                            <div className="mb-4 p-3 bg-orange-50 rounded border border-orange-200">
+                              <div className="text-center">
+                                <div className="font-semibold text-orange-800">Target: {matchResult.target} runs</div>
+                                <div className="text-sm text-orange-600">
+                                  {matchResult.awayScore >= matchResult.target ? 'Target achieved!' : `${matchResult.target - matchResult.awayScore} runs needed`}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Batting Scorecard */}
-                          <div className="mb-4">
-                            <h4 className="font-medium mb-2">Batting</h4>
+                          <div className="mb-6">
+                            <h4 className="font-semibold mb-3 flex items-center">
+                              <Users className="w-4 h-4 mr-2" />
+                              Batting
+                            </h4>
                             <div className="overflow-x-auto">
-                              <table className="w-full text-sm border">
+                              <table className="w-full text-sm border rounded">
                                 <thead>
-                                  <tr className="border-b bg-muted/30">
-                                    <th className="text-left p-2">Batsman</th>
-                                    <th className="text-center p-2">R</th>
-                                    <th className="text-center p-2">B</th>
-                                    <th className="text-center p-2">4s</th>
-                                    <th className="text-center p-2">6s</th>
-                                    <th className="text-center p-2">SR</th>
+                                  <tr className="border-b bg-green-50">
+                                    <th className="text-left p-3 font-semibold">Batsman</th>
+                                    <th className="text-center p-3 font-semibold">R</th>
+                                    <th className="text-center p-3 font-semibold">B</th>
+                                    <th className="text-center p-3 font-semibold">4s</th>
+                                    <th className="text-center p-3 font-semibold">6s</th>
+                                    <th className="text-center p-3 font-semibold">SR</th>
+                                    <th className="text-center p-3 font-semibold">Status</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {matchResult.secondInnings.batsmanScores?.map((batsman, index) => (
-                                    <tr key={index} className="border-b">
-                                      <td className="p-2">
-                                        {batsman.name}
-                                        {batsman.out && (
-                                          <div className="text-xs text-red-600">
+                                    <tr key={index} className={`border-b ${batsman.out ? 'bg-red-50' : 'bg-green-50'}`}>
+                                      <td className="p-3 font-medium">{batsman.name}</td>
+                                      <td className="text-center p-3 font-bold text-lg">{batsman.runs}</td>
+                                      <td className="text-center p-3">{batsman.balls}</td>
+                                      <td className="text-center p-3">{batsman.fours}</td>
+                                      <td className="text-center p-3">{batsman.sixes}</td>
+                                      <td className="text-center p-3">{batsman.strikeRate}</td>
+                                      <td className="text-center p-3">
+                                        {batsman.out ? (
+                                          <Badge variant="destructive" className="text-xs">
                                             {batsman.outType} b {batsman.bowler}
-                                          </div>
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="default" className="text-xs bg-green-600">
+                                            Not Out
+                                          </Badge>
                                         )}
                                       </td>
-                                      <td className="text-center p-2 font-medium">{batsman.runs}</td>
-                                      <td className="text-center p-2">{batsman.balls}</td>
-                                      <td className="text-center p-2">{batsman.fours}</td>
-                                      <td className="text-center p-2">{batsman.sixes}</td>
-                                      <td className="text-center p-2">{batsman.strikeRate}</td>
                                     </tr>
                                   ))}
                                 </tbody>
+                                <tfoot>
+                                  <tr className="border-t bg-green-100 font-semibold">
+                                    <td className="p-3">Total</td>
+                                    <td className="text-center p-3 font-bold">{matchResult.awayScore}</td>
+                                    <td className="text-center p-3" colSpan="6">
+                                      {matchResult.awayWickets} wickets • {matchResult.awayOvers} overs • RR: {matchResult.secondInnings.runRate}
+                                    </td>
+                                  </tr>
+                                </tfoot>
                               </table>
                             </div>
                           </div>
 
                           {/* Bowling Figures */}
                           <div>
-                            <h4 className="font-medium mb-2">Bowling</h4>
+                            <h4 className="font-semibold mb-3 flex items-center">
+                              <Target className="w-4 h-4 mr-2" />
+                              Bowling
+                            </h4>
                             <div className="overflow-x-auto">
-                              <table className="w-full text-sm border">
+                              <table className="w-full text-sm border rounded">
                                 <thead>
-                                  <tr className="border-b bg-muted/30">
-                                    <th className="text-left p-2">Bowler</th>
-                                    <th className="text-center p-2">O</th>
-                                    <th className="text-center p-2">M</th>
-                                    <th className="text-center p-2">R</th>
-                                    <th className="text-center p-2">W</th>
-                                    <th className="text-center p-2">Econ</th>
+                                  <tr className="border-b bg-red-50">
+                                    <th className="text-left p-3 font-semibold">Bowler</th>
+                                    <th className="text-center p-3 font-semibold">O</th>
+                                    <th className="text-center p-3 font-semibold">M</th>
+                                    <th className="text-center p-3 font-semibold">R</th>
+                                    <th className="text-center p-3 font-semibold">W</th>
+                                    <th className="text-center p-3 font-semibold">Econ</th>
+                                    <th className="text-center p-3 font-semibold">Extras</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {matchResult.secondInnings.bowlingFigures?.map((bowler, index) => (
                                     <tr key={index} className="border-b">
-                                      <td className="p-2">{bowler.name}</td>
-                                      <td className="text-center p-2">{bowler.overs}</td>
-                                      <td className="text-center p-2">{bowler.maidens}</td>
-                                      <td className="text-center p-2">{bowler.runs}</td>
-                                      <td className="text-center p-2 font-medium">{bowler.wickets}</td>
-                                      <td className="text-center p-2">{bowler.economy}</td>
+                                      <td className="p-3 font-medium">{bowler.name}</td>
+                                      <td className="text-center p-3">{bowler.overs}</td>
+                                      <td className="text-center p-3">{bowler.maidens}</td>
+                                      <td className="text-center p-3">{bowler.runs}</td>
+                                      <td className="text-center p-3 font-bold text-red-600">{bowler.wickets}</td>
+                                      <td className="text-center p-3">{bowler.economy}</td>
+                                      <td className="text-center p-3">-</td>
                                     </tr>
                                   ))}
                                 </tbody>
                               </table>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Match Statistics */}
+                        <div className="border rounded-lg p-4 bg-gray-50">
+                          <h3 className="font-bold text-lg mb-4 flex items-center">
+                            <BarChart3 className="w-5 h-5 mr-2" />
+                            Match Statistics
+                          </h3>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className="text-center p-3 bg-white rounded">
+                              <div className="font-bold text-lg text-blue-600">
+                                {matchResult.firstInnings.batsmanScores?.reduce((sum, b) => sum + b.fours, 0) || 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Total Fours</div>
+                            </div>
+                            <div className="text-center p-3 bg-white rounded">
+                              <div className="font-bold text-lg text-purple-600">
+                                {matchResult.firstInnings.batsmanScores?.reduce((sum, b) => sum + b.sixes, 0) || 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Total Sixes</div>
+                            </div>
+                            <div className="text-center p-3 bg-white rounded">
+                              <div className="font-bold text-lg text-red-600">
+                                {matchResult.firstInnings.bowlingFigures?.reduce((sum, b) => sum + b.wickets, 0) || 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Total Wickets</div>
+                            </div>
+                            <div className="text-center p-3 bg-white rounded">
+                              <div className="font-bold text-lg text-green-600">
+                                {matchResult.firstInnings.bowlingFigures?.reduce((sum, b) => sum + b.maidens, 0) || 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Maiden Overs</div>
                             </div>
                           </div>
                         </div>

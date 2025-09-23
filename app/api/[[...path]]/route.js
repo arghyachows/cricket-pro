@@ -981,16 +981,61 @@ export async function POST(request, { params }) {
           return NextResponse.json({ error: 'Match not found' }, { status: 404 });
         }
 
-        // Get teams and players (T20 only now)
-        const homeTeam = await db.collection('players').find({
-          user_id: match.home_team_id,
-          squad_type: 'senior'
-        }).limit(11).toArray();
+        // Get teams and players (T20 only now) - prioritize main lineup
+        let homeTeam = [];
+        let awayTeam = [];
 
-        let awayTeam = await db.collection('players').find({
+        // Check for home team main lineup
+        const homeLineup = await db.collection('lineups').findOne({
+          user_id: match.home_team_id,
+          is_main: true
+        });
+
+        if (homeLineup && homeLineup.players && homeLineup.players.length >= 11) {
+          // Get players from main lineup in order
+          const lineupPlayers = await db.collection('players').find({
+            id: { $in: homeLineup.players.slice(0, 11) }
+          }).toArray();
+
+          // Sort players according to lineup order
+          homeTeam = homeLineup.players.slice(0, 11).map(playerId =>
+            lineupPlayers.find(p => p.id === playerId)
+          ).filter(p => p); // Remove any null/undefined players
+        }
+
+        // Fallback to senior squad if no lineup or insufficient players
+        if (homeTeam.length < 11) {
+          const seniorPlayers = await db.collection('players').find({
+            user_id: match.home_team_id,
+            squad_type: 'senior'
+          }).limit(11).toArray();
+          homeTeam = seniorPlayers;
+        }
+
+        // Check for away team main lineup
+        const awayLineup = await db.collection('lineups').findOne({
           user_id: match.away_team_id,
-          squad_type: 'senior'
-        }).limit(11).toArray();
+          is_main: true
+        });
+
+        if (awayLineup && awayLineup.players && awayLineup.players.length >= 11) {
+          // Get players from main lineup in order
+          const lineupPlayers = await db.collection('players').find({
+            id: { $in: awayLineup.players.slice(0, 11) }
+          }).toArray();
+
+          // Sort players according to lineup order
+          awayTeam = awayLineup.players.slice(0, 11).map(playerId =>
+            lineupPlayers.find(p => p.id === playerId)
+          ).filter(p => p); // Remove any null/undefined players
+        } else {
+          // Fallback to senior squad
+          const seniorPlayers = await db.collection('players').find({
+            user_id: match.away_team_id,
+            squad_type: 'senior'
+          }).limit(11).toArray();
+          awayTeam = seniorPlayers;
+        }
 
         // If away team has no players (demo opponent), generate them
         if (awayTeam.length === 0) {
@@ -1123,16 +1168,61 @@ export async function POST(request, { params }) {
         // Simulate each match
         for (const match of pendingMatches) {
           try {
-            // Get teams and players
-            const homeTeam = await db.collection('players').find({
-              user_id: match.home_team_id,
-              squad_type: 'senior'
-            }).limit(11).toArray();
+            // Get teams and players - prioritize main lineup
+            let homeTeam = [];
+            let awayTeam = [];
 
-            let awayTeam = await db.collection('players').find({
+            // Check for home team main lineup
+            const homeLineup = await db.collection('lineups').findOne({
+              user_id: match.home_team_id,
+              is_main: true
+            });
+
+            if (homeLineup && homeLineup.players && homeLineup.players.length >= 11) {
+              // Get players from main lineup in order
+              const lineupPlayers = await db.collection('players').find({
+                id: { $in: homeLineup.players.slice(0, 11) }
+              }).toArray();
+
+              // Sort players according to lineup order
+              homeTeam = homeLineup.players.slice(0, 11).map(playerId =>
+                lineupPlayers.find(p => p.id === playerId)
+              ).filter(p => p); // Remove any null/undefined players
+            }
+
+            // Fallback to senior squad if no lineup or insufficient players
+            if (homeTeam.length < 11) {
+              const seniorPlayers = await db.collection('players').find({
+                user_id: match.home_team_id,
+                squad_type: 'senior'
+              }).limit(11).toArray();
+              homeTeam = seniorPlayers;
+            }
+
+            // Check for away team main lineup
+            const awayLineup = await db.collection('lineups').findOne({
               user_id: match.away_team_id,
-              squad_type: 'senior'
-            }).limit(11).toArray();
+              is_main: true
+            });
+
+            if (awayLineup && awayLineup.players && awayLineup.players.length >= 11) {
+              // Get players from main lineup in order
+              const lineupPlayers = await db.collection('players').find({
+                id: { $in: awayLineup.players.slice(0, 11) }
+              }).toArray();
+
+              // Sort players according to lineup order
+              awayTeam = awayLineup.players.slice(0, 11).map(playerId =>
+                lineupPlayers.find(p => p.id === playerId)
+              ).filter(p => p); // Remove any null/undefined players
+            } else {
+              // Fallback to senior squad
+              const seniorPlayers = await db.collection('players').find({
+                user_id: match.away_team_id,
+                squad_type: 'senior'
+              }).limit(11).toArray();
+              awayTeam = seniorPlayers;
+            }
 
             // If away team has no players (demo opponent), generate them
             if (awayTeam.length === 0) {
