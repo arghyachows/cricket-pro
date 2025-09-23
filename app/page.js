@@ -417,7 +417,7 @@ export default function App() {
             <div className="mx-auto mb-4 w-16 h-16 bg-green-600 rounded-full flex items-center justify-center">
               <Trophy className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-2xl">From the Pavilion</CardTitle>
+            <CardTitle className="text-2xl">Cricket Manager Pro</CardTitle>
             <CardDescription>T20 Cricket Management Game</CardDescription>
           </CardHeader>
           <CardContent>
@@ -516,7 +516,7 @@ export default function App() {
             <div className="flex items-center space-x-2">
               <Trophy className="w-8 h-8 text-green-600" />
               <div>
-                <h1 className="text-xl font-bold">From the Pavilion</h1>
+                <h1 className="text-xl font-bold">Cricket Manager Pro</h1>
                 <p className="text-sm text-muted-foreground">{user.team_name}</p>
               </div>
             </div>
