@@ -1,5 +1,8 @@
 const nextConfig = {
-  output: 'standalone',
+  // Only use standalone output in production
+  ...(process.env.NODE_ENV === 'production' && {
+    output: 'standalone',
+  }),
   images: {
     unoptimized: true,
   },
