@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
+import TournamentMatchSection from '@/components/TournamentMatchSection';
 import {
   Users,
   Trophy,
@@ -132,43 +133,7 @@ export default function LeaguePage() {
     router.push(`/match/${tournamentStatus.match.id}`);
   };
 
-  const handleSimulateMatch = async () => {
-    if (!tournamentStatus?.match) return;
 
-    try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-        ? 'http://localhost:3000'
-        : '';
-
-      const response = await fetch(`${baseUrl}/api/matches/${tournamentStatus.match.id}/simulate`, {
-        method: 'POST',
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "Match Simulated",
-          description: `${result.homeScore} vs ${result.awayScore}`,
-        });
-        fetchLeagueTable();
-        fetchTournamentStatus();
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to simulate match",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error simulating match:', error);
-      toast({
-        title: "Error",
-        description: "Failed to simulate match",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleQuickSim = async () => {
     if (!user) return;
@@ -277,139 +242,15 @@ export default function LeaguePage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Tournament Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CalendarDays className="w-5 h-5" />
-              <span>Tournament Management</span>
-            </CardTitle>
-            <CardDescription>Schedule and manage league matches</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {tournamentStatus ? (
-              <div className="space-y-4">
-                {tournamentStatus.status === 'tournament_complete' ? (
-                  <div className="text-center py-4">
-                    <Trophy className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Tournament Complete!</h3>
-                    <p className="text-muted-foreground mb-4">
-                      All {tournamentStatus.totalMatches} matches have been completed.
-                    </p>
-                    <Button onClick={scheduleMatches} className="flex items-center space-x-2">
-                      <CalendarDays className="w-4 h-4" />
-                      <span>Start New Tournament</span>
-                    </Button>
-                  </div>
-                ) : tournamentStatus.status === 'match_in_progress' ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <PlayCircle className="w-5 h-5 text-green-600" />
-                      <div>
-                        <h3 className="font-semibold">Match in Progress</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {tournamentStatus.match.home_team_name} vs {tournamentStatus.match.away_team_name}
-                        </p>
-                      </div>
-                    </div>
-
-                    {tournamentStatus.userInvolved ? (
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Your team is playing in this match. You can play it now or wait for it to complete.
-                        </p>
-                        <Button onClick={handlePlayMatch} className="flex items-center space-x-2">
-                          <PlayCircle className="w-4 h-4" />
-                          <span>Play Match</span>
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          This match doesn't involve your team. You can simulate it to proceed to the next match.
-                        </p>
-                        <Button onClick={handleSimulateMatch} variant="outline" className="flex items-center space-x-2">
-                          <SkipForward className="w-4 h-4" />
-                          <span>Simulate Match</span>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ) : tournamentStatus.status === 'next_match_available' ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="w-5 h-5 text-blue-600" />
-                      <div>
-                        <h3 className="font-semibold">Next Match</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {tournamentStatus.match.home_team_name} vs {tournamentStatus.match.away_team_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Round {tournamentStatus.match.round} • Match {tournamentStatus.match.match_number}
-                        </p>
-                      </div>
-                    </div>
-
-                    {tournamentStatus.canProceed ? (
-                      tournamentStatus.userInvolved ? (
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground">
-                            Your team is playing next. Click to start the match!
-                          </p>
-                          <Button onClick={handlePlayMatch} className="flex items-center space-x-2">
-                            <PlayCircle className="w-4 h-4" />
-                            <span>Play Your Match</span>
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground">
-                            This match doesn't involve your team. Simulate it to proceed to your next match.
-                          </p>
-                          <Button onClick={handleSimulateMatch} variant="outline" className="flex items-center space-x-2">
-                            <SkipForward className="w-4 h-4" />
-                            <span>Simulate Match</span>
-                          </Button>
-                        </div>
-                      )
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          {tournamentStatus.previousMatchesPending} previous match{tournamentStatus.previousMatchesPending > 1 ? 'es' : ''} must be completed first.
-                        </p>
-                        <Badge variant="secondary">Waiting for previous matches</Badge>
-                        <Button onClick={handleQuickSim} disabled={quickSimLoading} variant="outline" className="flex items-center space-x-2 mt-2 disabled:opacity-50">
-                          {quickSimLoading ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                          ) : (
-                            <SkipForward className="w-4 h-4" />
-                          )}
-                          <span>{quickSimLoading ? 'Simulating...' : 'Quick Sim All Pending Matches'}</span>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <CalendarDays className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No Tournament Scheduled</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Schedule matches to start the tournament.
-                    </p>
-                    <Button onClick={scheduleMatches} className="flex items-center space-x-2">
-                      <CalendarDays className="w-4 h-4" />
-                      <span>Schedule Tournament</span>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Loading tournament status...</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <TournamentMatchSection
+          tournamentStatus={tournamentStatus}
+          onPlayMatch={handlePlayMatch}
+          onQuickSim={handleQuickSim}
+          onScheduleTournament={scheduleMatches}
+          quickSimLoading={quickSimLoading}
+          showTitle={true}
+          title="Tournament Management"
+        />
 
         {/* League Table */}
         <Card>
