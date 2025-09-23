@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [leagueTable, setLeagueTable] = useState([]);
   const [lineups, setLineups] = useState([]);
   const [marketplace, setMarketplace] = useState([]);
+  const [tournamentStatus, setTournamentStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -47,6 +48,13 @@ export default function DashboardPage() {
     setUser(JSON.parse(savedUser));
     fetchUserData();
   }, [router]);
+
+  useEffect(() => {
+    // Fetch tournament status when user is available
+    if (user) {
+      fetchTournamentStatus();
+    }
+  }, [user]);
 
   const fetchUserData = async () => {
     const savedUser = JSON.parse(localStorage.getItem('user'));
@@ -150,6 +158,65 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchTournamentStatus = async () => {
+    if (!user) return;
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+
+      const response = await fetch(`${baseUrl}/api/matches/next?userId=${user.id}`);
+      const status = await response.json();
+      setTournamentStatus(status);
+    } catch (error) {
+      console.error('Error fetching tournament status:', error);
+    }
+  };
+
+  const handlePlayMatch = async () => {
+    if (!tournamentStatus?.match) return;
+    router.push(`/match/${tournamentStatus.match.id}`);
+  };
+
+  const handleSimulateMatch = async () => {
+    if (!tournamentStatus?.match) return;
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+
+      const response = await fetch(`${baseUrl}/api/matches/${tournamentStatus.match.id}/simulate`, {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Match Simulated",
+          description: `${result.homeScore} vs ${result.awayScore}`,
+        });
+        fetchUserData();
+        fetchTournamentStatus();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to simulate match",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error simulating match:', error);
+      toast({
+        title: "Error",
+        description: "Failed to simulate match",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('user');
     setUser(null);
@@ -218,50 +285,127 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <div className="space-y-6">
-          {/* Next Match Section */}
+          {/* Tournament Match Section */}
           <Card className="bg-gradient-to-r from-blue-50 to-purple-50">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Calendar className="w-5 h-5" />
-                <span>NEXT MATCH</span>
+                <span>TOURNAMENT MATCH</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {upcomingMatches.length > 0 ? (
+              {tournamentStatus ? (
                 <div className="space-y-4">
-                  {upcomingMatches.slice(0, 1).map((match) => (
-                    <div key={match.id} className="text-center">
-                      <div className="text-sm text-muted-foreground mb-2">
-                        Saturday, October 28th 2023 (3 days)
-                      </div>
-                      <div className="flex items-center justify-center space-x-4 mb-4">
-                        <div className="text-center">
-                          <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold mb-2">
-                            {user.team_name.charAt(0)}
-                          </div>
-                          <div className="font-medium">{user.team_name}</div>
-                        </div>
-                        <div className="text-2xl font-bold">vs</div>
-                        <div className="text-center">
-                          <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold mb-2">
-                            O
-                          </div>
-                          <div className="font-medium">Opponent Team</div>
-                        </div>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Indian Premier League • Wankhede Stadium • T20
-                      </div>
+                  {tournamentStatus.status === 'tournament_complete' ? (
+                    <div className="text-center py-4">
+                      <Trophy className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Tournament Complete!</h3>
+                      <p className="text-muted-foreground mb-4">
+                        All {tournamentStatus.totalMatches} matches have been completed.
+                      </p>
+                      <Button onClick={() => router.push('/journey')} className="flex items-center space-x-2">
+                        <Calendar className="w-4 h-4" />
+                        <span>Start New Tournament</span>
+                      </Button>
                     </div>
-                  ))}
+                  ) : tournamentStatus.status === 'match_in_progress' ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <Play className="w-5 h-5 text-green-600" />
+                        <div>
+                          <h3 className="font-semibold">Match in Progress</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {tournamentStatus.match.home_team_name} vs {tournamentStatus.match.away_team_name}
+                          </p>
+                        </div>
+                      </div>
+
+                      {tournamentStatus.userInvolved ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            Your team is playing in this match. You can play it now or wait for it to complete.
+                          </p>
+                          <Button onClick={handlePlayMatch} className="flex items-center space-x-2">
+                            <Play className="w-4 h-4" />
+                            <span>Play Your Match</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            This match doesn't involve your team. You can simulate it to proceed to your next match.
+                          </p>
+                          <Button onClick={handleSimulateMatch} variant="outline" className="flex items-center space-x-2">
+                            <Play className="w-4 h-4" />
+                            <span>Simulate Match</span>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : tournamentStatus.status === 'next_match_available' ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <h3 className="font-semibold">Next Tournament Match</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {tournamentStatus.match.home_team_name} vs {tournamentStatus.match.away_team_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Round {tournamentStatus.match.round} • Match {tournamentStatus.match.match_number}
+                          </p>
+                        </div>
+                      </div>
+
+                      {tournamentStatus.canProceed ? (
+                        tournamentStatus.userInvolved ? (
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">
+                              Your team is playing next. Click to start the match!
+                            </p>
+                            <Button onClick={handlePlayMatch} className="flex items-center space-x-2">
+                              <Play className="w-4 h-4" />
+                              <span>Play Your Match</span>
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">
+                              This match doesn't involve your team. Simulate it to proceed to your next match.
+                            </p>
+                            <Button onClick={handleSimulateMatch} variant="outline" className="flex items-center space-x-2">
+                              <Play className="w-4 h-4" />
+                              <span>Simulate Match</span>
+                            </Button>
+                          </div>
+                        )
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            {tournamentStatus.previousMatchesPending} previous match{tournamentStatus.previousMatchesPending > 1 ? 'es' : ''} must be completed first.
+                          </p>
+                          <Badge variant="secondary">Waiting for previous matches</Badge>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">No Tournament Scheduled</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Schedule matches to start the tournament.
+                      </p>
+                      <Button onClick={() => router.push('/journey')} className="flex items-center space-x-2">
+                        <Calendar className="w-4 h-4" />
+                        <span>Schedule Tournament</span>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground mb-4">No upcoming matches</p>
-                  <Button onClick={createFriendlyMatch}>
-                    Create T20 Match
-                  </Button>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Loading tournament status...</p>
                 </div>
               )}
             </CardContent>
