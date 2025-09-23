@@ -254,19 +254,11 @@ export default function LeaguePage() {
             </Button>
             <Button
               variant="ghost"
-              className="flex-shrink-0"
-              onClick={() => router.push('/matches')}
-            >
-              <Calendar className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Matches</span>
-            </Button>
-            <Button
-              variant="ghost"
               className="bg-primary text-primary-foreground flex-shrink-0"
-              onClick={() => router.push('/league')}
+              onClick={() => router.push('/journey')}
             >
               <Trophy className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">League</span>
+              <span className="hidden sm:inline">My Journey</span>
             </Button>
             <Button
               variant="ghost"
