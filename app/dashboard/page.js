@@ -332,7 +332,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {leagueTable.slice(0, 10).map((team, index) => (
+                    {leagueTable.leagueTable && leagueTable.leagueTable.slice(0, 10).map((team, index) => (
                       <div key={team.id} className={`flex items-center justify-between p-2 rounded ${index < 3 ? 'bg-green-50' : ''}`}>
                         <div className="flex items-center space-x-3">
                           <span className="text-sm font-medium w-6">{index + 1}</span>

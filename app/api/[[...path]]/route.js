@@ -9,7 +9,7 @@ async function getDatabase() {
     client = new MongoClient(process.env.MONGO_URL);
     await client.connect();
   }
-  return client.db(process.env.DB_NAME || 'cricket_pavilion');
+  return client.db(process.env.DB_NAME || 'cricket-pro');
 }
 
 // Helper function to generate player with realistic skills
@@ -796,134 +796,126 @@ export async function GET(request, { params }) {
     }
 
     if (path[0] === 'leagues') {
-      // Get enhanced league table with detailed statistics
-      const matches = await db.collection('matches').find({ 
-        match_type: 'T20',
+      // Get current season (default to current year if not specified)
+      const currentSeason = searchParams.get('season') || new Date().getFullYear().toString();
+
+      // Get all users (teams)
+      const allUsers = await db.collection('users').find({}).toArray();
+
+      // Get completed matches for the current season
+      const seasonMatches = await db.collection('matches').find({
+        league: 'default',
         status: 'completed'
       }).toArray();
-      
+
+      // Initialize all teams from users with 0 stats
       const teams = {};
-      
-      for (const match of matches) {
-        // Initialize teams
-        if (!teams[match.home_team_id]) {
-          const user = await db.collection('users').findOne({ id: match.home_team_id });
-          teams[match.home_team_id] = {
-            id: match.home_team_id,
-            name: user?.team_name || 'Unknown Team',
-            played: 0,
-            won: 0,
-            lost: 0,
-            tied: 0,
-            points: 0,
-            netRunRate: 0,
-            runsFor: 0,
-            runsAgainst: 0,
-            oversFor: 0,
-            oversAgainst: 0,
-            highestScore: 0,
-            lowestScore: 999,
-            averageScore: 0,
-            winPercentage: 0,
-            form: [] // Last 5 matches
-          };
-        }
-        
-        if (!teams[match.away_team_id]) {
-          const user = await db.collection('users').findOne({ id: match.away_team_id });
-          teams[match.away_team_id] = {
-            id: match.away_team_id,
-            name: user?.team_name || 'Unknown Team',
-            played: 0,
-            won: 0,
-            lost: 0,
-            tied: 0,
-            points: 0,
-            netRunRate: 0,
-            runsFor: 0,
-            runsAgainst: 0,
-            oversFor: 0,
-            oversAgainst: 0,
-            highestScore: 0,
-            lowestScore: 999,
-            averageScore: 0,
-            winPercentage: 0,
-            form: []
-          };
-        }
-        
-        // Update stats
-        teams[match.home_team_id].played++;
-        teams[match.away_team_id].played++;
-        
-        teams[match.home_team_id].runsFor += match.home_score;
-        teams[match.home_team_id].runsAgainst += match.away_score;
-        teams[match.home_team_id].oversFor += match.home_overs || 20;
-        teams[match.home_team_id].oversAgainst += match.away_overs || 20;
-        
-        teams[match.away_team_id].runsFor += match.away_score;
-        teams[match.away_team_id].runsAgainst += match.home_score;
-        teams[match.away_team_id].oversFor += match.away_overs || 20;
-        teams[match.away_team_id].oversAgainst += match.home_overs || 20;
-        
-        // Track highest and lowest scores
-        teams[match.home_team_id].highestScore = Math.max(teams[match.home_team_id].highestScore, match.home_score);
-        teams[match.home_team_id].lowestScore = Math.min(teams[match.home_team_id].lowestScore, match.home_score);
-        teams[match.away_team_id].highestScore = Math.max(teams[match.away_team_id].highestScore, match.away_score);
-        teams[match.away_team_id].lowestScore = Math.min(teams[match.away_team_id].lowestScore, match.away_score);
-        
-        // Update win/loss records and form
+      allUsers.forEach(user => {
+        teams[user.id] = {
+          id: user.id,
+          name: user.team_name || 'Unknown Team',
+          played: 0,
+          won: 0,
+          lost: 0,
+          tied: 0,
+          points: 0,
+          netRunRate: 0,
+          runsFor: 0,
+          runsAgainst: 0,
+          oversFor: 0,
+          oversAgainst: 0,
+          highestScore: 0,
+          lowestScore: 999,
+          averageScore: 0,
+          winPercentage: 0,
+          form: []
+        };
+      });
+
+      // Calculate stats from season matches
+      seasonMatches.forEach(match => {
+        const homeTeam = teams[match.home_team_id];
+        const awayTeam = teams[match.away_team_id];
+
+        if (!homeTeam || !awayTeam) return; // Skip if team not found
+
+        // Update played matches
+        homeTeam.played++;
+        awayTeam.played++;
+
+        // Update runs and overs
+        homeTeam.runsFor += match.home_score;
+        homeTeam.runsAgainst += match.away_score;
+        homeTeam.oversFor += match.home_overs || 20;
+        homeTeam.oversAgainst += match.away_overs || 20;
+
+        awayTeam.runsFor += match.away_score;
+        awayTeam.runsAgainst += match.home_score;
+        awayTeam.oversFor += match.away_overs || 20;
+        awayTeam.oversAgainst += match.home_overs || 20;
+
+        // Update highest/lowest scores
+        homeTeam.highestScore = Math.max(homeTeam.highestScore, match.home_score);
+        homeTeam.lowestScore = Math.min(homeTeam.lowestScore, match.home_score);
+        awayTeam.highestScore = Math.max(awayTeam.highestScore, match.away_score);
+        awayTeam.lowestScore = Math.min(awayTeam.lowestScore, match.away_score);
+
+        // Update win/loss/tie records and form
         if (match.result === match.home_team_id) {
-          teams[match.home_team_id].won++;
-          teams[match.home_team_id].points += 4;
-          teams[match.away_team_id].lost++;
-          teams[match.home_team_id].form.unshift('W');
-          teams[match.away_team_id].form.unshift('L');
+          homeTeam.won++;
+          homeTeam.points += 4;
+          awayTeam.lost++;
+          homeTeam.form.unshift('W');
+          awayTeam.form.unshift('L');
         } else if (match.result === match.away_team_id) {
-          teams[match.away_team_id].won++;
-          teams[match.away_team_id].points += 4;
-          teams[match.home_team_id].lost++;
-          teams[match.away_team_id].form.unshift('W');
-          teams[match.home_team_id].form.unshift('L');
+          awayTeam.won++;
+          awayTeam.points += 4;
+          homeTeam.lost++;
+          awayTeam.form.unshift('W');
+          homeTeam.form.unshift('L');
         } else {
-          teams[match.home_team_id].tied++;
-          teams[match.away_team_id].tied++;
-          teams[match.home_team_id].points += 2;
-          teams[match.away_team_id].points += 2;
-          teams[match.home_team_id].form.unshift('T');
-          teams[match.away_team_id].form.unshift('T');
+          homeTeam.tied++;
+          awayTeam.tied++;
+          homeTeam.points += 2;
+          awayTeam.points += 2;
+          homeTeam.form.unshift('T');
+          awayTeam.form.unshift('T');
         }
-        
+
         // Keep only last 5 matches in form
-        if (teams[match.home_team_id].form.length > 5) {
-          teams[match.home_team_id].form = teams[match.home_team_id].form.slice(0, 5);
-        }
-        if (teams[match.away_team_id].form.length > 5) {
-          teams[match.away_team_id].form = teams[match.away_team_id].form.slice(0, 5);
-        }
-      }
-      
-      // Calculate final statistics and sort
+        if (homeTeam.form.length > 5) homeTeam.form = homeTeam.form.slice(0, 5);
+        if (awayTeam.form.length > 5) awayTeam.form = awayTeam.form.slice(0, 5);
+      });
+
+      // Calculate final statistics
       const leagueTable = Object.values(teams).map(team => {
         // Net Run Rate calculation
         const runRateFor = team.oversFor > 0 ? team.runsFor / team.oversFor : 0;
         const runRateAgainst = team.oversAgainst > 0 ? team.runsAgainst / team.oversAgainst : 0;
         team.netRunRate = (runRateFor - runRateAgainst).toFixed(3);
-        
+
         // Other calculations
         team.averageScore = team.played > 0 ? (team.runsFor / team.played).toFixed(1) : '0.0';
         team.winPercentage = team.played > 0 ? ((team.won / team.played) * 100).toFixed(1) : '0.0';
-        
+
         // Handle lowest score for teams that haven't played
         if (team.lowestScore === 999) team.lowestScore = 0;
-        
+
         return team;
-      }).sort((a, b) => {
+      });
+
+      // Sort by points (descending), then by net run rate (descending)
+      leagueTable.sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
         return parseFloat(b.netRunRate) - parseFloat(a.netRunRate);
       });
-      
-      return NextResponse.json(leagueTable);
+
+      return NextResponse.json({
+        season: currentSeason,
+        leagueTable,
+        totalMatches: seasonMatches.length,
+        completedMatches: seasonMatches.length
+      });
     }
 
     return NextResponse.json({ message: 'Cricket Pavilion API' });
