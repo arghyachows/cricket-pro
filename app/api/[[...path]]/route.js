@@ -12,6 +12,68 @@ async function getDatabase() {
   return client.db(process.env.DB_NAME || 'cricket-pro');
 }
 
+// Generate double round-robin fixtures (each team plays every other team twice)
+function generateRoundRobinFixtures(teams) {
+  const fixtures = [];
+  const numTeams = teams.length;
+
+  // If odd number of teams, add a bye
+  const hasBye = numTeams % 2 !== 0;
+  const effectiveTeams = hasBye ? [...teams, { id: 'bye', team_name: 'Bye' }] : teams;
+  const numRounds = effectiveTeams.length - 1;
+
+  // First half: Standard round-robin
+  for (let round = 0; round < numRounds; round++) {
+    const roundFixtures = [];
+
+    for (let i = 0; i < effectiveTeams.length / 2; i++) {
+      const home = effectiveTeams[i];
+      const away = effectiveTeams[effectiveTeams.length - 1 - i];
+
+      if (home.id !== 'bye' && away.id !== 'bye') {
+        roundFixtures.push({
+          home,
+          away,
+          round: round + 1
+        });
+      }
+    }
+
+    fixtures.push(roundFixtures);
+
+    // Rotate teams (keep first team fixed, rotate others)
+    const first = effectiveTeams.shift();
+    effectiveTeams.push(first);
+  }
+
+  // Second half: Reverse fixtures (away becomes home)
+  for (let round = 0; round < numRounds; round++) {
+    const roundFixtures = [];
+
+    for (let i = 0; i < effectiveTeams.length / 2; i++) {
+      const home = effectiveTeams[i];
+      const away = effectiveTeams[effectiveTeams.length - 1 - i];
+
+      if (home.id !== 'bye' && away.id !== 'bye') {
+        // Swap home and away for reverse fixtures
+        roundFixtures.push({
+          home: away,
+          away: home,
+          round: round + numRounds + 1
+        });
+      }
+    }
+
+    fixtures.push(roundFixtures);
+
+    // Rotate teams (keep first team fixed, rotate others)
+    const first = effectiveTeams.shift();
+    effectiveTeams.push(first);
+  }
+
+  return fixtures;
+}
+
 // Helper function to generate player with realistic skills
 function generatePlayer(age = null) {
   const ages = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
@@ -409,6 +471,113 @@ function simulateInnings(battingTeam, bowlingTeam, target = null, matchCondition
   };
 }
 
+// Helper function to calculate league standings
+function calculateLeagueStandings(allUsers, seasonMatches) {
+  // Initialize all teams from users with 0 stats
+  const teams = {};
+  allUsers.forEach(user => {
+    teams[user.id] = {
+      id: user.id,
+      name: user.team_name || 'Unknown Team',
+      played: 0,
+      won: 0,
+      lost: 0,
+      tied: 0,
+      points: 0,
+      netRunRate: 0,
+      runsFor: 0,
+      runsAgainst: 0,
+      oversFor: 0,
+      oversAgainst: 0,
+      highestScore: 0,
+      lowestScore: 999,
+      averageScore: 0,
+      winPercentage: 0,
+      form: []
+    };
+  });
+
+  // Calculate stats from season matches
+  seasonMatches.forEach(match => {
+    const homeTeam = teams[match.home_team_id];
+    const awayTeam = teams[match.away_team_id];
+
+    if (!homeTeam || !awayTeam) return; // Skip if team not found
+
+    // Update played matches
+    homeTeam.played++;
+    awayTeam.played++;
+
+    // Update runs and overs
+    homeTeam.runsFor += match.home_score;
+    homeTeam.runsAgainst += match.away_score;
+    homeTeam.oversFor += match.home_overs || 20;
+    homeTeam.oversAgainst += match.away_overs || 20;
+
+    awayTeam.runsFor += match.away_score;
+    awayTeam.runsAgainst += match.home_score;
+    awayTeam.oversFor += match.away_overs || 20;
+    awayTeam.oversAgainst += match.home_overs || 20;
+
+    // Update highest/lowest scores
+    homeTeam.highestScore = Math.max(homeTeam.highestScore, match.home_score);
+    homeTeam.lowestScore = Math.min(homeTeam.lowestScore, match.home_score);
+    awayTeam.highestScore = Math.max(awayTeam.highestScore, match.away_score);
+    awayTeam.lowestScore = Math.min(awayTeam.lowestScore, match.away_score);
+
+    // Update win/loss/tie records and form
+    if (match.result === match.home_team_id) {
+      homeTeam.won++;
+      homeTeam.points += 4;
+      awayTeam.lost++;
+      homeTeam.form.unshift('W');
+      awayTeam.form.unshift('L');
+    } else if (match.result === match.away_team_id) {
+      awayTeam.won++;
+      awayTeam.points += 4;
+      homeTeam.lost++;
+      awayTeam.form.unshift('W');
+      homeTeam.form.unshift('L');
+    } else {
+      homeTeam.tied++;
+      awayTeam.tied++;
+      homeTeam.points += 2;
+      awayTeam.points += 2;
+      homeTeam.form.unshift('T');
+      awayTeam.form.unshift('T');
+    }
+
+    // Keep only last 5 matches in form
+    if (homeTeam.form.length > 5) homeTeam.form = homeTeam.form.slice(0, 5);
+    if (awayTeam.form.length > 5) awayTeam.form = awayTeam.form.slice(0, 5);
+  });
+
+  // Calculate final statistics
+  const leagueTable = Object.values(teams).map(team => {
+    // Net Run Rate calculation
+    const runRateFor = team.oversFor > 0 ? team.runsFor / team.oversFor : 0;
+    const runRateAgainst = team.oversAgainst > 0 ? team.runsAgainst / team.oversAgainst : 0;
+    team.netRunRate = (runRateFor - runRateAgainst).toFixed(3);
+
+    // Other calculations
+    team.averageScore = team.played > 0 ? (team.runsFor / team.played).toFixed(1) : '0.0';
+    team.winPercentage = team.played > 0 ? ((team.won / team.played) * 100).toFixed(1) : '0.0';
+
+    // Handle lowest score for teams that haven't played
+    if (team.lowestScore === 999) team.lowestScore = 0;
+
+    return team;
+  });
+
+  // Sort by points (descending), then by net run rate (descending)
+  leagueTable.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    return parseFloat(b.netRunRate) - parseFloat(a.netRunRate);
+  });
+
+  return leagueTable;
+}
+
 // Enhanced commentary generation functions
 function generateWicketCommentary(batsman, bowler, wicketType, runs, wicketNumber) {
   const wicketComments = {
@@ -677,17 +846,71 @@ export async function GET(request, { params }) {
     }
 
     if (path[0] === 'leagues') {
-      // Get current season (default to current year if not specified)
-      const currentSeason = searchParams.get('season') || new Date().getFullYear().toString();
+      const requestedSeason = searchParams.get('season');
+      const showHistory = searchParams.get('history') === 'true';
 
       // Get all users (teams)
       const allUsers = await db.collection('users').find({}).toArray();
 
-      // Get completed matches for the current season
+      // Get league seasons to determine current season
+      const leagueSeasons = await db.collection('league_seasons').find({
+        league_id: 'default'
+      }).sort({ season: -1 }).toArray();
+
+      let activeSeason = null;
+      if (leagueSeasons.length > 0) {
+        // Find the most recent active season
+        const activeSeasonDoc = leagueSeasons.find(s => s.status === 'active');
+        if (activeSeasonDoc) {
+          activeSeason = activeSeasonDoc.season;
+        } else {
+          // If no active season, use the most recent completed season
+          activeSeason = leagueSeasons[0].season;
+        }
+      }
+
+      // Use requested season or active season
+      const currentSeason = requestedSeason || activeSeason;
+
+      // Get completed matches for the requested season
       const seasonMatches = await db.collection('matches').find({
         league: 'default',
+        season: showHistory ? { $ne: activeSeason } : activeSeason,
         status: 'completed'
       }).toArray();
+
+      // If showing history, group by season
+      if (showHistory) {
+        const seasonsData = {};
+
+        // Group matches by season
+        for (const match of seasonMatches) {
+          if (!seasonsData[match.season]) {
+            seasonsData[match.season] = [];
+          }
+          seasonsData[match.season].push(match);
+        }
+
+        // Calculate standings for each season
+        const history = [];
+        for (const [season, matches] of Object.entries(seasonsData)) {
+          const seasonStandings = calculateLeagueStandings(allUsers, matches);
+          history.push({
+            season,
+            standings: seasonStandings,
+            totalMatches: matches.length,
+            completedMatches: matches.length
+          });
+        }
+
+        // Sort by season (most recent first)
+        history.sort((a, b) => b.season.localeCompare(a.season));
+
+        return NextResponse.json({
+          history,
+          currentSeason: activeSeason
+        });
+      }
 
       // Initialize all teams from users with 0 stats
       const teams = {};
@@ -1139,22 +1362,151 @@ export async function POST(request, { params }) {
       }
 
       if (path[1] === 'quick-sim') {
-        // Quick sim multiple matches
+        // Quick sim targeted matches (not all at once)
         const body = await request.json();
-        const { userId } = body;
+        const { userId, matchId, simulateAll = false } = body;
 
         if (!userId) {
           return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
         }
 
-        // Find all pending matches that don't involve the user
-        const pendingMatches = await db.collection('matches').find({
-          status: { $in: ['scheduled', 'pending'] },
-          home_team_id: { $ne: userId },
-          away_team_id: { $ne: userId }
-        }).toArray();
+        // Get current active season
+        const activeSeason = await db.collection('league_seasons').findOne({
+          league_id: 'default',
+          status: 'active'
+        });
 
-        if (pendingMatches.length === 0) {
+        if (!activeSeason) {
+          return NextResponse.json({
+            message: 'No active season found',
+            simulated: 0,
+            total: 0
+          });
+        }
+
+        let matchesToSimulate = [];
+
+        if (matchId) {
+          // Simulate specific match
+          const specificMatch = await db.collection('matches').findOne({
+            id: matchId,
+            league: 'default',
+            season: activeSeason.season,
+            status: { $in: ['scheduled', 'in-progress'] }
+          });
+
+          if (specificMatch) {
+            matchesToSimulate = [specificMatch];
+          }
+        } else if (simulateAll) {
+          // Simulate all matches that are blocking progress (sequential simulation)
+          const allSeasonMatches = await db.collection('matches').find({
+            league: 'default',
+            season: activeSeason.season
+          }).sort({ match_number: 1 }).toArray();
+
+          // Find the earliest incomplete match
+          const earliestIncompleteMatch = allSeasonMatches.find(m => m.status !== 'completed');
+
+          if (earliestIncompleteMatch) {
+            // Get all matches up to and including this one that are not completed
+            const blockingMatches = allSeasonMatches
+              .filter(m => m.match_number <= earliestIncompleteMatch.match_number && m.status !== 'completed')
+              .sort((a, b) => a.match_number - b.match_number);
+
+            matchesToSimulate = blockingMatches;
+          }
+        } else {
+          // Default: simulate next available match for the user
+          const nextMatch = await db.collection('matches').findOne(
+            {
+              league: 'default',
+              season: activeSeason.season,
+              status: 'scheduled'
+            },
+            { sort: { match_number: 1 } }
+          );
+
+          if (nextMatch) {
+            matchesToSimulate = [nextMatch];
+          }
+        }
+
+        // If no matches to simulate, check if we need to schedule next round
+        if (matchesToSimulate.length === 0) {
+          const allSeasonMatches = await db.collection('matches').find({
+            league: 'default',
+            season: activeSeason.season
+          }).toArray();
+
+          if (allSeasonMatches.length > 0) {
+            const currentRound = Math.max(...allSeasonMatches.map(m => m.round));
+            const currentRoundMatches = allSeasonMatches.filter(m => m.round === currentRound);
+            const completedMatches = currentRoundMatches.filter(m => m.status === 'completed').length;
+            const totalCurrentRoundMatches = currentRoundMatches.length;
+
+            if (completedMatches === totalCurrentRoundMatches) {
+              // Current round is complete, schedule next round
+              const teams = await db.collection('users').find({}).toArray();
+              const fixtures = generateRoundRobinFixtures(teams);
+              const nextRoundIndex = currentRound; // fixtures is 0-indexed, round is 1-indexed
+
+              if (nextRoundIndex < fixtures.length) {
+                const nextRound = fixtures[nextRoundIndex];
+                let matchNumber = allSeasonMatches.length + 1;
+                const matchesToCreate = [];
+
+                for (const fixture of nextRound) {
+                  const matchId = `match_default_${activeSeason.season}_${matchNumber}`;
+                  const match = {
+                    id: matchId,
+                    home_team_id: fixture.home.id,
+                    away_team_id: fixture.away.id,
+                    league: 'default',
+                    season: activeSeason.season,
+                    match_type: 'T20',
+                    scheduled_time: new Date(Date.now() + (matchNumber * 24 * 60 * 60 * 1000)),
+                    pitch_type: 'Normal',
+                    weather: 'Sunny',
+                    status: 'scheduled',
+                    home_score: 0,
+                    away_score: 0,
+                    home_wickets: 0,
+                    away_wickets: 0,
+                    home_overs: 0,
+                    away_overs: 0,
+                    result: null,
+                    win_margin: null,
+                    win_type: null,
+                    target: null,
+                    commentary: [],
+                    current_innings: null,
+                    current_over: 0,
+                    current_ball: 0,
+                    current_runs: 0,
+                    current_wickets: 0,
+                    live_commentary: [],
+                    match_data: null,
+                    created_at: new Date(),
+                    round: fixture.round,
+                    match_number: matchNumber
+                  };
+
+                  matchesToCreate.push(match);
+                  matchNumber++;
+                }
+
+                if (matchesToCreate.length > 0) {
+                  await db.collection('matches').insertMany(matchesToCreate);
+                  // Return the first match of the new round for simulation
+                  matchesToSimulate = [matchesToCreate[0]];
+                }
+              }
+            }
+          }
+        }
+
+        if (matchesToSimulate.length === 0) {
           return NextResponse.json({
             message: 'No matches available for quick simulation',
             simulated: 0,
@@ -1165,97 +1517,28 @@ export async function POST(request, { params }) {
         const results = [];
         let simulatedCount = 0;
 
-        // Simulate each match
-        for (const match of pendingMatches) {
+        // Simulate each match with simplified random scores
+        for (const match of matchesToSimulate) {
           try {
-            // Get teams and players - prioritize main lineup
-            let homeTeam = [];
-            let awayTeam = [];
+            // Generate random T20 scores (typical range: 120-200 runs, 4-10 wickets)
+            const homeScore = Math.floor(Math.random() * 81) + 120; // 120-200
+            const awayScore = Math.floor(Math.random() * 81) + 120; // 120-200
+            const homeWickets = Math.floor(Math.random() * 7) + 4; // 4-10 wickets
+            const awayWickets = Math.floor(Math.random() * 7) + 4; // 4-10 wickets
 
-            // Check for home team main lineup
-            const homeLineup = await db.collection('lineups').findOne({
-              user_id: match.home_team_id,
-              is_main: true
-            });
-
-            if (homeLineup && homeLineup.players && homeLineup.players.length >= 11) {
-              // Get players from main lineup in order
-              const lineupPlayers = await db.collection('players').find({
-                id: { $in: homeLineup.players.slice(0, 11) }
-              }).toArray();
-
-              // Sort players according to lineup order
-              homeTeam = homeLineup.players.slice(0, 11).map(playerId =>
-                lineupPlayers.find(p => p.id === playerId)
-              ).filter(p => p); // Remove any null/undefined players
-            }
-
-            // Fallback to senior squad if no lineup or insufficient players
-            if (homeTeam.length < 11) {
-              const seniorPlayers = await db.collection('players').find({
-                user_id: match.home_team_id,
-                squad_type: 'senior'
-              }).limit(11).toArray();
-              homeTeam = seniorPlayers;
-            }
-
-            // Check for away team main lineup
-            const awayLineup = await db.collection('lineups').findOne({
-              user_id: match.away_team_id,
-              is_main: true
-            });
-
-            if (awayLineup && awayLineup.players && awayLineup.players.length >= 11) {
-              // Get players from main lineup in order
-              const lineupPlayers = await db.collection('players').find({
-                id: { $in: awayLineup.players.slice(0, 11) }
-              }).toArray();
-
-              // Sort players according to lineup order
-              awayTeam = awayLineup.players.slice(0, 11).map(playerId =>
-                lineupPlayers.find(p => p.id === playerId)
-              ).filter(p => p); // Remove any null/undefined players
-            } else {
-              // Fallback to senior squad
-              const seniorPlayers = await db.collection('players').find({
-                user_id: match.away_team_id,
-                squad_type: 'senior'
-              }).limit(11).toArray();
-              awayTeam = seniorPlayers;
-            }
-
-            // If away team has no players (demo opponent), generate them
-            if (awayTeam.length === 0) {
-              awayTeam = [];
-              for (let i = 0; i < 11; i++) {
-                const player = generatePlayer();
-                player.user_id = match.away_team_id;
-                awayTeam.push(player);
-              }
-            }
-
-            // Match conditions
-            const matchConditions = {
-              weather: match.weather || 'Sunny',
-              pitchType: match.pitch_type || 'Normal'
-            };
-
-            // Simulate first innings
-            const firstInnings = simulateInnings(homeTeam, awayTeam, null, matchConditions, false);
-
-            // Simulate second innings with target
-            const target = firstInnings.runs + 1;
-            const secondInnings = simulateInnings(awayTeam, homeTeam, target, matchConditions, true);
+            // Overs (usually 19.1 to 20.0 for completed innings)
+            const homeOvers = Math.random() < 0.7 ? 20.0 : parseFloat((19 + Math.floor(Math.random() * 6) + 1) / 10);
+            const awayOvers = Math.random() < 0.7 ? 20.0 : parseFloat((19 + Math.floor(Math.random() * 6) + 1) / 10);
 
             // Determine winner
             let winner, winMargin, winType;
-            if (secondInnings.runs > firstInnings.runs) {
+            if (awayScore > homeScore) {
               winner = match.away_team_id;
-              winMargin = 10 - secondInnings.wickets;
+              winMargin = 10 - awayWickets;
               winType = 'wickets';
-            } else if (firstInnings.runs > secondInnings.runs) {
+            } else if (homeScore > awayScore) {
               winner = match.home_team_id;
-              winMargin = firstInnings.runs - secondInnings.runs;
+              winMargin = homeScore - awayScore;
               winType = 'runs';
             } else {
               winner = 'tie';
@@ -1263,60 +1546,44 @@ export async function POST(request, { params }) {
               winType = 'tie';
             }
 
+            // Create match summary
+            const target = homeScore + 1;
+            const matchSummary = `${match.home_team_id} vs ${match.away_team_id}: ${homeScore}/${homeWickets} (${homeOvers}) vs ${awayScore}/${awayWickets} (${awayOvers})`;
+
             const matchResult = {
               matchId: match.id,
-              homeScore: `${firstInnings.runs}/${firstInnings.wickets}`,
-              awayScore: `${secondInnings.runs}/${secondInnings.wickets}`,
-              homeOvers: firstInnings.overs,
-              awayOvers: secondInnings.overs,
+              homeScore: `${homeScore}/${homeWickets}`,
+              awayScore: `${awayScore}/${awayWickets}`,
+              homeOvers: homeOvers,
+              awayOvers: awayOvers,
               winner,
               winMargin,
               winType,
               target,
-              commentary: [...firstInnings.commentary, ...secondInnings.commentary],
-              firstInnings,
-              secondInnings,
-              matchConditions
+              summary: matchSummary,
+              commentary: [`${matchSummary} - ${winner === 'tie' ? 'Match tied' : `${winner} won by ${winMargin} ${winType}`}`]
             };
 
-            // Update match with complete result
+            // Update match with simplified result
             await db.collection('matches').updateOne(
               { id: match.id },
               {
                 $set: {
                   status: 'completed',
-                  home_score: firstInnings.runs,
-                  away_score: secondInnings.runs,
-                  home_overs: firstInnings.overs,
-                  away_overs: secondInnings.overs,
-                  home_wickets: firstInnings.wickets,
-                  away_wickets: secondInnings.wickets,
+                  home_score: homeScore,
+                  away_score: awayScore,
+                  home_overs: homeOvers,
+                  away_overs: awayOvers,
+                  home_wickets: homeWickets,
+                  away_wickets: awayWickets,
                   result: winner,
                   win_margin: winMargin,
                   win_type: winType,
                   target: target,
                   commentary: matchResult.commentary,
                   match_data: {
-                    firstInnings: {
-                      runs: firstInnings.runs,
-                      wickets: firstInnings.wickets,
-                      overs: firstInnings.overs,
-                      runRate: firstInnings.runRate,
-                      batsmanScores: firstInnings.batsmanScores,
-                      bowlingFigures: firstInnings.bowlingFigures,
-                      partnerships: firstInnings.partnerships,
-                      fallOfWickets: firstInnings.fallOfWickets
-                    },
-                    secondInnings: {
-                      runs: secondInnings.runs,
-                      wickets: secondInnings.wickets,
-                      overs: secondInnings.overs,
-                      runRate: secondInnings.runRate,
-                      batsmanScores: secondInnings.batsmanScores,
-                      bowlingFigures: secondInnings.bowlingFigures,
-                      partnerships: secondInnings.partnerships,
-                      fallOfWickets: secondInnings.fallOfWickets
-                    }
+                    summary: matchSummary,
+                    result: winner === 'tie' ? 'Match tied' : `${winner} won by ${winMargin} ${winType}`
                   },
                   completed_at: new Date()
                 }
@@ -1333,9 +1600,9 @@ export async function POST(request, { params }) {
         }
 
         return NextResponse.json({
-          message: `Successfully simulated ${simulatedCount} matches`,
+          message: `Successfully simulated ${simulatedCount} match${simulatedCount > 1 ? 'es' : ''}`,
           simulated: simulatedCount,
-          total: pendingMatches.length,
+          total: matchesToSimulate.length,
           results
         });
       }

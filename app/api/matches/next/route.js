@@ -21,9 +21,24 @@ export async function GET(request) {
     await client.connect();
     const db = client.db(process.env.DB_NAME || 'cricket-pro');
 
-    // Get current match (in progress or live)
+    // Get current active season
+    const activeSeason = await db.collection('league_seasons').findOne({
+      league_id: leagueId,
+      status: 'active'
+    });
+
+    if (!activeSeason) {
+      await client.close();
+      return NextResponse.json({
+        status: 'no_active_season',
+        message: 'No active season found'
+      });
+    }
+
+    // Get current match (in progress or live) for the active season
     const currentMatch = await db.collection('matches').findOne({
       league: leagueId,
+      season: activeSeason.season,
       status: { $in: ['in-progress', 'live'] }
     });
 
@@ -47,13 +62,14 @@ export async function GET(request) {
       });
     }
 
-    // No match in progress, get next scheduled match
+    // No match in progress, get next scheduled match for the active season (by match number for sequential play)
     const nextMatch = await db.collection('matches').findOne(
       {
         league: leagueId,
+        season: activeSeason.season,
         status: 'scheduled'
       },
-      { sort: { scheduled_time: 1 } }
+      { sort: { match_number: 1 } }
     );
 
     if (nextMatch) {
@@ -62,9 +78,10 @@ export async function GET(request) {
       const homeTeam = await db.collection('users').findOne({ id: nextMatch.home_team_id });
       const awayTeam = await db.collection('users').findOne({ id: nextMatch.away_team_id });
 
-      // Check if previous matches are completed
+      // Check if previous matches are completed in the current season
       const previousMatches = await db.collection('matches').countDocuments({
         league: leagueId,
+        season: activeSeason.season,
         match_number: { $lt: nextMatch.match_number },
         status: { $ne: 'completed' }
       });
@@ -86,13 +103,15 @@ export async function GET(request) {
       });
     }
 
-    // No more matches
+    // No more matches in the current season
     const totalMatches = await db.collection('matches').countDocuments({
-      league: leagueId
+      league: leagueId,
+      season: activeSeason.season
     });
 
     const completedMatches = await db.collection('matches').countDocuments({
       league: leagueId,
+      season: activeSeason.season,
       status: 'completed'
     });
 
