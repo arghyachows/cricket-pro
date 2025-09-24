@@ -47,6 +47,8 @@ export default function SquadPage() {
   const [playerToSell, setPlayerToSell] = useState(null);
   const [salePrice, setSalePrice] = useState('');
   const [isCreatingLineup, setIsCreatingLineup] = useState(false);
+  const [isEditingLineup, setIsEditingLineup] = useState(false);
+  const [editingLineup, setEditingLineup] = useState(null);
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
   const [filters, setFilters] = useState({
     battingStyle: 'all',
@@ -163,6 +165,64 @@ export default function SquadPage() {
       toast({
         title: "Error",
         description: "Failed to create lineup",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const editLineup = async () => {
+    if (newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id ||
+        !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name) {
+      toast({
+        title: "Error",
+        description: "Please fill all required fields: 11 players, captain, wicketkeeper, and 2 bowlers",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+      const response = await fetch(`${baseUrl}/api/lineups/${editingLineup.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newLineup),
+      });
+
+      const lineup = await response.json();
+
+      if (response.ok) {
+        setLineups(lineups.map(l => l.id === editingLineup.id ? lineup : l));
+        setIsEditingLineup(false);
+        setEditingLineup(null);
+        setNewLineup({
+          name: 'Main Lineup',
+          players: [],
+          captain_id: '',
+          wicketkeeper_id: '',
+          first_bowler_id: '',
+          second_bowler_id: '',
+          is_main: true
+        });
+        toast({
+          title: "Success!",
+          description: "Main lineup updated successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: lineup.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update lineup",
         variant: "destructive",
       });
     }
@@ -660,8 +720,32 @@ export default function SquadPage() {
             {mainLineup ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>{mainLineup.name}</CardTitle>
-                  <Badge variant="default">Main Lineup</Badge>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>{mainLineup.name}</CardTitle>
+                      <Badge variant="default">Main Lineup</Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingLineup(mainLineup);
+                        setNewLineup({
+                          name: mainLineup.name,
+                          players: [...mainLineup.players],
+                          captain_id: mainLineup.captain_id,
+                          wicketkeeper_id: mainLineup.wicketkeeper_id,
+                          first_bowler_id: mainLineup.first_bowler_id,
+                          second_bowler_id: mainLineup.second_bowler_id,
+                          is_main: mainLineup.is_main
+                        });
+                        setIsEditingLineup(true);
+                      }}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -873,6 +957,133 @@ export default function SquadPage() {
                         !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name}
             >
               Create Main Lineup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lineup Edit Dialog */}
+      <Dialog open={isEditingLineup} onOpenChange={setIsEditingLineup}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Edit Main Lineup</DialogTitle>
+            <DialogDescription>
+              Modify your main lineup by selecting different players and updating roles
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-lineup-name">Lineup Name</Label>
+                <Input
+                  id="edit-lineup-name"
+                  value={newLineup.name}
+                  onChange={(e) => setNewLineup({...newLineup, name: e.target.value})}
+                  placeholder="e.g., Main T20 Team"
+                />
+              </div>
+              <div className="flex items-center space-x-2 pt-6">
+                <Checkbox
+                  id="edit-is-main"
+                  checked={newLineup.is_main}
+                  onCheckedChange={(checked) => setNewLineup({...newLineup, is_main: checked})}
+                  disabled
+                />
+                <Label htmlFor="edit-is-main">Set as main lineup (required)</Label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <Label>Captain</Label>
+                <Select value={newLineup.captain_id} onValueChange={(value) => setNewLineup({...newLineup, captain_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select captain" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Wicketkeeper</Label>
+                <Select value={newLineup.wicketkeeper_id} onValueChange={(value) => setNewLineup({...newLineup, wicketkeeper_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select keeper" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>1st Bowler</Label>
+                <Select value={newLineup.first_bowler_id} onValueChange={(value) => setNewLineup({...newLineup, first_bowler_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select 1st bowler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>2nd Bowler</Label>
+                <Select value={newLineup.second_bowler_id} onValueChange={(value) => setNewLineup({...newLineup, second_bowler_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select 2nd bowler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                      <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Select Players ({newLineup.players.length}/11)</Label>
+              <ScrollArea className="h-64 border rounded-md p-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {players.map((player) => (
+                    <div key={player.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`edit-${player.id}`}
+                        checked={newLineup.players.includes(player.id)}
+                        onCheckedChange={(checked) => handlePlayerSelect(player.id, checked)}
+                        disabled={!newLineup.players.includes(player.id) && newLineup.players.length >= 11}
+                      />
+                      <Label htmlFor={`edit-${player.id}`} className="text-sm">
+                        {player.name} (Rating: {player.rating})
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingLineup(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={editLineup}
+              disabled={newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id ||
+                        !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name}
+            >
+              Update Main Lineup
             </Button>
           </DialogFooter>
         </DialogContent>

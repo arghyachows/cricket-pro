@@ -804,7 +804,7 @@ export async function GET(request, { params }) {
 
     if (path[0] === 'lineups') {
       const userId = searchParams.get('userId');
-      
+
       if (path[1]) {
         // Get specific lineup
         const lineup = await db.collection('lineups').findOne({ id: path[1] });
@@ -1805,16 +1805,39 @@ export async function PUT(request, { params }) {
       return NextResponse.json(updatedPlayer);
     }
 
+    if (path[0] === 'lineups' && path[1]) {
+      const result = await db.collection('lineups').updateOne(
+        { id: path[1] },
+        { $set: { ...body, updated_at: new Date() } }
+      );
+
+      if (result.matchedCount === 0) {
+        return NextResponse.json({ error: 'Lineup not found' }, { status: 404 });
+      }
+
+      // If this is set as main lineup, unset others
+      if (body.is_main) {
+        const lineup = await db.collection('lineups').findOne({ id: path[1] });
+        await db.collection('lineups').updateMany(
+          { user_id: lineup.user_id, id: { $ne: path[1] } },
+          { $set: { is_main: false } }
+        );
+      }
+
+      const updatedLineup = await db.collection('lineups').findOne({ id: path[1] });
+      return NextResponse.json(updatedLineup);
+    }
+
     if (path[0] === 'matches' && path[1]) {
       const result = await db.collection('matches').updateOne(
         { id: path[1] },
         { $set: { ...body, updated_at: new Date() } }
       );
-      
+
       if (result.matchedCount === 0) {
         return NextResponse.json({ error: 'Match not found' }, { status: 404 });
       }
-      
+
       const updatedMatch = await db.collection('matches').findOne({ id: path[1] });
       return NextResponse.json(updatedMatch);
     }
