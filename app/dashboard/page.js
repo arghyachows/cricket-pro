@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
+import MatchSummary from '@/components/MatchSummary';
 
 import {
   Users,
@@ -38,6 +39,8 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [quickSimLoading, setQuickSimLoading] = useState(false);
+  const [matchSummary, setMatchSummary] = useState(null);
+  const [showMatchSummary, setShowMatchSummary] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -160,6 +163,57 @@ export default function DashboardPage() {
       });
     } finally {
       setQuickSimLoading(false);
+    }
+  };
+
+  const handleViewMatch = async (match) => {
+    // If match already has detailed data, use it
+    if (match.match_data && match.match_data.firstInnings) {
+      setMatchSummary({
+        matchId: match.id,
+        homeTeam: { id: match.home_team_id, name: match.home_team_name || 'Home Team' },
+        awayTeam: { id: match.away_team_id, name: match.away_team_name || 'Away Team' },
+        homeScore: match.home_score,
+        awayScore: match.away_score,
+        homeOvers: match.home_overs,
+        awayOvers: match.away_overs,
+        winner: match.result,
+        winMargin: match.win_margin,
+        winType: match.win_type,
+        target: match.target,
+        commentary: match.commentary || [],
+        firstInnings: match.match_data.firstInnings,
+        secondInnings: match.match_data.secondInnings,
+        matchConditions: {
+          weather: match.weather || 'Sunny',
+          pitchType: match.pitch_type || 'Normal'
+        }
+      });
+      setShowMatchSummary(true);
+      return;
+    }
+
+    // Otherwise, simulate the match to get detailed data
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+
+      const response = await fetch(`${baseUrl}/api/matches/simulate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ matchId: match.id }),
+      });
+
+      if (response.ok) {
+        const matchData = await response.json();
+        setMatchSummary(matchData);
+        setShowMatchSummary(true);
+      }
+    } catch (error) {
+      console.error('Error simulating match for details:', error);
     }
   };
 
@@ -397,7 +451,11 @@ export default function DashboardPage() {
                       const userWon = match.result === user.id;
 
                       return (
-                        <div key={match.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div
+                          key={match.id}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                          onClick={() => handleViewMatch(match)}
+                        >
                           <div className="flex items-center space-x-3">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                               isUserInvolved
@@ -453,6 +511,17 @@ export default function DashboardPage() {
       </main>
 
       <Toaster />
+
+      {/* Match Summary Modal */}
+      {showMatchSummary && matchSummary && (
+        <MatchSummary
+          matchData={matchSummary}
+          onClose={() => {
+            setShowMatchSummary(false);
+            setMatchSummary(null);
+          }}
+        />
+      )}
     </div>
   );
 }

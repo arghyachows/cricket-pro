@@ -773,18 +773,32 @@ export async function GET(request, { params }) {
         // Get all matches with enhanced filtering
         const userId = searchParams.get('userId');
         const status = searchParams.get('status');
+        const limit = parseInt(searchParams.get('limit')) || 50;
         let filter = {};
-        
+
         if (userId) {
           filter = { $or: [{ home_team_id: userId }, { away_team_id: userId }] };
         }
-        
+
         if (status) {
           filter.status = status;
         }
-        
-        const matches = await db.collection('matches').find(filter).sort({ created_at: -1 }).toArray();
-        return NextResponse.json(matches);
+
+        const matches = await db.collection('matches').find(filter).sort({ created_at: -1 }).limit(limit).toArray();
+
+        // Populate team names
+        const populatedMatches = await Promise.all(matches.map(async (match) => {
+          const homeTeam = await db.collection('users').findOne({ id: match.home_team_id });
+          const awayTeam = await db.collection('users').findOne({ id: match.away_team_id });
+
+          return {
+            ...match,
+            home_team_name: homeTeam ? homeTeam.team_name : 'Unknown Team',
+            away_team_name: awayTeam ? awayTeam.team_name : 'Unknown Team'
+          };
+        }));
+
+        return NextResponse.json(populatedMatches);
       }
     }
 

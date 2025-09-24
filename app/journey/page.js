@@ -11,6 +11,7 @@ import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
 import LeagueMatchSection from '@/components/LeagueMatchSection';
 import MatchSummary from '@/components/MatchSummary';
+import MatchList from '@/components/MatchList';
 import {
   Users,
   Trophy,
@@ -371,6 +372,13 @@ export default function LeaguePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Recent Matches */}
+            <MatchList
+              userId={user.id}
+              showTitle={true}
+              title="Recent Matches"
+            />
           </TabsContent>
 
           <TabsContent value="history" className="space-y-6">
