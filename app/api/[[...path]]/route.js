@@ -1517,28 +1517,101 @@ export async function POST(request, { params }) {
         const results = [];
         let simulatedCount = 0;
 
-        // Simulate each match with simplified random scores
+        // Simulate each match with detailed player statistics
         for (const match of matchesToSimulate) {
           try {
-            // Generate random T20 scores (typical range: 120-200 runs, 4-10 wickets)
-            const homeScore = Math.floor(Math.random() * 81) + 120; // 120-200
-            const awayScore = Math.floor(Math.random() * 81) + 120; // 120-200
-            const homeWickets = Math.floor(Math.random() * 7) + 4; // 4-10 wickets
-            const awayWickets = Math.floor(Math.random() * 7) + 4; // 4-10 wickets
+            // Get teams and players - prioritize main lineup
+            let homeTeam = [];
+            let awayTeam = [];
 
-            // Overs (usually 19.1 to 20.0 for completed innings)
-            const homeOvers = Math.random() < 0.7 ? 20.0 : parseFloat((19 + Math.floor(Math.random() * 6) + 1) / 10);
-            const awayOvers = Math.random() < 0.7 ? 20.0 : parseFloat((19 + Math.floor(Math.random() * 6) + 1) / 10);
+            // Check for home team main lineup
+            const homeLineup = await db.collection('lineups').findOne({
+              user_id: match.home_team_id,
+              is_main: true
+            });
+
+            if (homeLineup && homeLineup.players && homeLineup.players.length >= 11) {
+              // Get players from main lineup in order
+              const lineupPlayers = await db.collection('players').find({
+                id: { $in: homeLineup.players.slice(0, 11) }
+              }).toArray();
+
+              // Sort players according to lineup order
+              homeTeam = homeLineup.players.slice(0, 11).map(playerId =>
+                lineupPlayers.find(p => p.id === playerId)
+              ).filter(p => p); // Remove any null/undefined players
+            }
+
+            // Fallback to senior squad if no lineup or insufficient players
+            if (homeTeam.length < 11) {
+              const seniorPlayers = await db.collection('players').find({
+                user_id: match.home_team_id,
+                squad_type: 'senior'
+              }).limit(11).toArray();
+              homeTeam = seniorPlayers;
+            }
+
+            // Check for away team main lineup
+            const awayLineup = await db.collection('lineups').findOne({
+              user_id: match.away_team_id,
+              is_main: true
+            });
+
+            if (awayLineup && awayLineup.players && awayLineup.players.length >= 11) {
+              // Get players from main lineup in order
+              const lineupPlayers = await db.collection('players').find({
+                id: { $in: awayLineup.players.slice(0, 11) }
+              }).toArray();
+
+              // Sort players according to lineup order
+              awayTeam = awayLineup.players.slice(0, 11).map(playerId =>
+                lineupPlayers.find(p => p.id === playerId)
+              ).filter(p => p); // Remove any null/undefined players
+            } else {
+              // Fallback to senior squad
+              const seniorPlayers = await db.collection('players').find({
+                user_id: match.away_team_id,
+                squad_type: 'senior'
+              }).limit(11).toArray();
+              awayTeam = seniorPlayers;
+            }
+
+            // If away team has no players (demo opponent), generate them
+            if (awayTeam.length === 0) {
+              awayTeam = [];
+              for (let i = 0; i < 11; i++) {
+                const player = generatePlayer();
+                player.user_id = match.away_team_id;
+                awayTeam.push(player);
+              }
+            }
+
+            // Match conditions
+            const matchConditions = {
+              weather: match.weather || 'Sunny',
+              pitchType: match.pitch_type || 'Normal'
+            };
+
+            // Get team names
+            const homeTeamInfo = await db.collection('users').findOne({ id: match.home_team_id });
+            const awayTeamInfo = await db.collection('users').findOne({ id: match.away_team_id });
+
+            // Simulate first innings
+            const firstInnings = simulateInnings(homeTeam, awayTeam, null, matchConditions, false);
+
+            // Simulate second innings with target
+            const target = firstInnings.runs + 1;
+            const secondInnings = simulateInnings(awayTeam, homeTeam, target, matchConditions, true);
 
             // Determine winner
             let winner, winMargin, winType;
-            if (awayScore > homeScore) {
+            if (secondInnings.runs > firstInnings.runs) {
               winner = match.away_team_id;
-              winMargin = 10 - awayWickets;
+              winMargin = 10 - secondInnings.wickets;
               winType = 'wickets';
-            } else if (homeScore > awayScore) {
+            } else if (firstInnings.runs > secondInnings.runs) {
               winner = match.home_team_id;
-              winMargin = homeScore - awayScore;
+              winMargin = firstInnings.runs - secondInnings.runs;
               winType = 'runs';
             } else {
               winner = 'tie';
@@ -1546,44 +1619,62 @@ export async function POST(request, { params }) {
               winType = 'tie';
             }
 
-            // Create match summary
-            const target = homeScore + 1;
-            const matchSummary = `${match.home_team_id} vs ${match.away_team_id}: ${homeScore}/${homeWickets} (${homeOvers}) vs ${awayScore}/${awayWickets} (${awayOvers})`;
-
             const matchResult = {
               matchId: match.id,
-              homeScore: `${homeScore}/${homeWickets}`,
-              awayScore: `${awayScore}/${awayWickets}`,
-              homeOvers: homeOvers,
-              awayOvers: awayOvers,
+              homeTeam: homeTeamInfo ? { id: homeTeamInfo.id, name: homeTeamInfo.team_name } : { id: match.home_team_id, name: 'Home Team' },
+              awayTeam: awayTeamInfo ? { id: awayTeamInfo.id, name: awayTeamInfo.team_name } : { id: match.away_team_id, name: 'Away Team' },
+              homeScore: firstInnings.runs,
+              awayScore: secondInnings.runs,
+              homeOvers: firstInnings.overs,
+              awayOvers: secondInnings.overs,
               winner,
               winMargin,
               winType,
               target,
-              summary: matchSummary,
-              commentary: [`${matchSummary} - ${winner === 'tie' ? 'Match tied' : `${winner} won by ${winMargin} ${winType}`}`]
+              commentary: [...firstInnings.commentary, ...secondInnings.commentary],
+              firstInnings,
+              secondInnings,
+              matchConditions
             };
 
-            // Update match with simplified result
+            // Update match with detailed result
             await db.collection('matches').updateOne(
               { id: match.id },
               {
                 $set: {
                   status: 'completed',
-                  home_score: homeScore,
-                  away_score: awayScore,
-                  home_overs: homeOvers,
-                  away_overs: awayOvers,
-                  home_wickets: homeWickets,
-                  away_wickets: awayWickets,
+                  home_score: firstInnings.runs,
+                  away_score: secondInnings.runs,
+                  home_overs: firstInnings.overs,
+                  away_overs: secondInnings.overs,
+                  home_wickets: firstInnings.wickets,
+                  away_wickets: secondInnings.wickets,
                   result: winner,
                   win_margin: winMargin,
                   win_type: winType,
                   target: target,
                   commentary: matchResult.commentary,
                   match_data: {
-                    summary: matchSummary,
-                    result: winner === 'tie' ? 'Match tied' : `${winner} won by ${winMargin} ${winType}`
+                    firstInnings: {
+                      runs: firstInnings.runs,
+                      wickets: firstInnings.wickets,
+                      overs: firstInnings.overs,
+                      runRate: firstInnings.runRate,
+                      batsmanScores: firstInnings.batsmanScores,
+                      bowlingFigures: firstInnings.bowlingFigures,
+                      partnerships: firstInnings.partnerships,
+                      fallOfWickets: firstInnings.fallOfWickets
+                    },
+                    secondInnings: {
+                      runs: secondInnings.runs,
+                      wickets: secondInnings.wickets,
+                      overs: secondInnings.overs,
+                      runRate: secondInnings.runRate,
+                      batsmanScores: secondInnings.batsmanScores,
+                      bowlingFigures: secondInnings.bowlingFigures,
+                      partnerships: secondInnings.partnerships,
+                      fallOfWickets: secondInnings.fallOfWickets
+                    }
                   },
                   completed_at: new Date()
                 }

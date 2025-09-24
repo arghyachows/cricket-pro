@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
 import LeagueMatchSection from '@/components/LeagueMatchSection';
+import MatchSummary from '@/components/MatchSummary';
 import {
   Users,
   Trophy,
@@ -32,6 +33,8 @@ export default function LeaguePage() {
   const [leagueStatus, setLeagueStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quickSimLoading, setQuickSimLoading] = useState(false);
+  const [matchSummary, setMatchSummary] = useState(null);
+  const [showMatchSummary, setShowMatchSummary] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -171,6 +174,13 @@ export default function LeaguePage() {
           title: "Quick Simulation Complete",
           description: `Simulated ${result.simulated} matches`,
         });
+
+        // Show match summary for the first simulated match if available
+        if (result.results && result.results.length > 0) {
+          setMatchSummary(result.results[0]);
+          setShowMatchSummary(true);
+        }
+
         fetchLeagueTable();
         fetchLeagueStatus();
       } else {
@@ -437,6 +447,17 @@ export default function LeaguePage() {
       </main>
 
       <Toaster />
+
+      {/* Match Summary Modal */}
+      {showMatchSummary && matchSummary && (
+        <MatchSummary
+          matchData={matchSummary}
+          onClose={() => {
+            setShowMatchSummary(false);
+            setMatchSummary(null);
+          }}
+        />
+      )}
     </div>
   );
 }
