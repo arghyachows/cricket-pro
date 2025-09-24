@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
-import TournamentMatchSection from '@/components/TournamentMatchSection';
+import LeagueMatchSection from '@/components/LeagueMatchSection';
 import {
   Users,
   Trophy,
@@ -26,7 +26,7 @@ export default function LeaguePage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [leagueTable, setLeagueTable] = useState([]);
-  const [tournamentStatus, setTournamentStatus] = useState(null);
+  const [leagueStatus, setLeagueStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quickSimLoading, setQuickSimLoading] = useState(false);
   const { toast } = useToast();
@@ -44,9 +44,9 @@ export default function LeaguePage() {
   }, [router]);
 
   useEffect(() => {
-    // Fetch tournament status when user is available
+    // Fetch league status when user is available
     if (user) {
-      fetchTournamentStatus();
+      fetchLeagueStatus();
     }
   }, [user]);
 
@@ -71,7 +71,7 @@ export default function LeaguePage() {
     }
   };
 
-  const fetchTournamentStatus = async () => {
+  const fetchLeagueStatus = async () => {
     if (!user) return;
 
     try {
@@ -81,9 +81,9 @@ export default function LeaguePage() {
 
       const response = await fetch(`${baseUrl}/api/matches/next?userId=${user.id}`);
       const status = await response.json();
-      setTournamentStatus(status);
+      setLeagueStatus(status);
     } catch (error) {
-      console.error('Error fetching tournament status:', error);
+      console.error('Error fetching league status:', error);
     }
   };
 
@@ -108,7 +108,7 @@ export default function LeaguePage() {
           title: "Success",
           description: `Scheduled ${result.totalMatches} matches for ${result.teamsCount} teams`,
         });
-        fetchTournamentStatus();
+        fetchLeagueStatus();
       } else {
         toast({
           title: "Error",
@@ -127,10 +127,10 @@ export default function LeaguePage() {
   };
 
   const handlePlayMatch = async () => {
-    if (!tournamentStatus?.match) return;
+    if (!leagueStatus?.match) return;
 
     // Navigate to match page with the match ID
-    router.push(`/match/${tournamentStatus.match.id}`);
+    router.push(`/match/${leagueStatus.match.id}`);
   };
 
 
@@ -160,7 +160,7 @@ export default function LeaguePage() {
           description: `Simulated ${result.simulated} matches`,
         });
         fetchLeagueTable();
-        fetchTournamentStatus();
+        fetchLeagueStatus();
       } else {
         toast({
           title: "Error",
@@ -241,15 +241,15 @@ export default function LeaguePage() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* Tournament Management */}
-        <TournamentMatchSection
-          tournamentStatus={tournamentStatus}
+        {/* League Management */}
+        <LeagueMatchSection
+          leagueStatus={leagueStatus}
           onPlayMatch={handlePlayMatch}
           onQuickSim={handleQuickSim}
-          onScheduleTournament={scheduleMatches}
+          onScheduleLeague={scheduleMatches}
           quickSimLoading={quickSimLoading}
           showTitle={true}
-          title="Tournament Management"
+          title="League Management"
         />
 
         {/* League Table */}

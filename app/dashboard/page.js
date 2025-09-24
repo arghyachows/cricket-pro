@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/sonner';
 import Navigation from '@/components/Navigation';
-import TournamentMatchSection from '@/components/TournamentMatchSection';
+
 import {
   Users,
   Trophy,
@@ -34,7 +34,7 @@ export default function DashboardPage() {
   const [leagueTable, setLeagueTable] = useState([]);
   const [lineups, setLineups] = useState([]);
   const [marketplace, setMarketplace] = useState([]);
-  const [tournamentStatus, setTournamentStatus] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [quickSimLoading, setQuickSimLoading] = useState(false);
   const { toast } = useToast();
@@ -51,12 +51,7 @@ export default function DashboardPage() {
     fetchUserData();
   }, [router]);
 
-  useEffect(() => {
-    // Fetch tournament status when user is available
-    if (user) {
-      fetchTournamentStatus();
-    }
-  }, [user]);
+
 
   const fetchUserData = async () => {
     const savedUser = JSON.parse(localStorage.getItem('user'));
@@ -158,26 +153,7 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchTournamentStatus = async () => {
-    if (!user) return;
 
-    try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-        ? 'http://localhost:3000'
-        : '';
-
-      const response = await fetch(`${baseUrl}/api/matches/next?userId=${user.id}`);
-      const status = await response.json();
-      setTournamentStatus(status);
-    } catch (error) {
-      console.error('Error fetching tournament status:', error);
-    }
-  };
-
-  const handlePlayMatch = async () => {
-    if (!tournamentStatus?.match) return;
-    router.push(`/match/${tournamentStatus.match.id}`);
-  };
 
 
 
@@ -206,7 +182,6 @@ export default function DashboardPage() {
           description: `Simulated ${result.simulated} matches`,
         });
         fetchUserData();
-        fetchTournamentStatus();
       } else {
         toast({
           title: "Error",
@@ -294,16 +269,6 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <div className="space-y-6">
-          {/* Tournament Match Section */}
-          <TournamentMatchSection
-            tournamentStatus={tournamentStatus}
-            onPlayMatch={handlePlayMatch}
-            onQuickSim={handleQuickSim}
-            onScheduleTournament={() => router.push('/journey')}
-            quickSimLoading={quickSimLoading}
-            title="TOURNAMENT MATCH"
-          />
-
           {/* Main Dashboard Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column - League Table & Quick Stats */}

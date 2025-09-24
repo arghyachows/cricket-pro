@@ -99,7 +99,7 @@ export async function GET(request) {
     await client.close();
 
     return NextResponse.json({
-      status: 'tournament_complete',
+      status: 'league_complete',
       totalMatches,
       completedMatches,
       canProceed: false
