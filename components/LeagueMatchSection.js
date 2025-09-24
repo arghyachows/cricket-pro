@@ -18,7 +18,6 @@ import {
 
 export default function LeagueMatchSection({
   leagueStatus,
-  onPlayMatch,
   onQuickSim,
   onScheduleLeague,
   quickSimLoading,
@@ -163,39 +162,29 @@ export default function LeagueMatchSection({
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-sm text-blue-800">
                     {leagueStatus.userInvolved
-                      ? "🎯 Your team is currently playing! Choose to play the full match or use Quick Sim to generate random results."
+                      ? "🎯 Your team is currently playing! Use Quick Sim to generate random results and continue."
                       : "⏭️ This match doesn't involve your team. Use Quick Sim to fast-forward to your next match."
                     }
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2">
-                  {leagueStatus.userInvolved && (
-                    <Button onClick={onPlayMatch} className="flex items-center space-x-2 flex-1">
-                      <Play className="w-4 h-4" />
-                      <span>🎮 Play Full Match</span>
-                    </Button>
+                <Button
+                  onClick={onQuickSim}
+                  disabled={quickSimLoading}
+                  variant="outline"
+                  className="flex items-center space-x-2 w-full"
+                >
+                  {quickSimLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                  ) : (
+                    <Zap className="w-4 h-4" />
                   )}
-                  <Button
-                    onClick={onQuickSim}
-                    disabled={quickSimLoading}
-                    variant="outline"
-                    className="flex items-center space-x-2 flex-1"
-                  >
-                    {quickSimLoading ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                    ) : (
-                      <Zap className="w-4 h-4" />
-                    )}
-                    <span>{quickSimLoading ? '⚡ Simulating...' : '⚡ Quick Sim'}</span>
-                  </Button>
-                </div>
+                  <span>{quickSimLoading ? '⚡ Simulating...' : '⚡ Quick Sim Match'}</span>
+                </Button>
 
-                {!leagueStatus.userInvolved && (
-                  <div className="text-xs text-muted-foreground text-center">
-                    Quick Sim will generate random scores and move to your next match
-                  </div>
-                )}
+                <div className="text-xs text-muted-foreground text-center">
+                  Quick Sim generates random T20 scores and progresses the league
+                </div>
               </div>
             </div>
           ) : leagueStatus.status === 'next_match_available' ? (
@@ -249,28 +238,20 @@ export default function LeagueMatchSection({
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                     <p className="text-sm text-green-800">
                       {leagueStatus.userInvolved
-                        ? "🎮 Your team is up next! Play the full match experience or use Quick Sim to skip with random results."
+                        ? "🎯 Your team is up next! Use Quick Sim to generate random results and continue the season."
                         : "⏭️ This match doesn't involve your team. Quick Sim will fast-forward to your next match."
                       }
                     </p>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    {leagueStatus.userInvolved && (
-                      <Button onClick={onPlayMatch} className="flex items-center space-x-2 flex-1">
-                        <Play className="w-4 h-4" />
-                        <span>🎮 Play Your Match</span>
-                      </Button>
-                    )}
-                    <Button
-                      onClick={() => setShowQuickSimDetails(!showQuickSimDetails)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs"
-                    >
-                      {showQuickSimDetails ? 'Hide' : 'Show'} Quick Sim Details
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={() => setShowQuickSimDetails(!showQuickSimDetails)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs w-full"
+                  >
+                    {showQuickSimDetails ? 'Hide' : 'Show'} Quick Sim Details
+                  </Button>
 
                   {showQuickSimDetails && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">

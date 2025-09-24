@@ -143,12 +143,7 @@ export default function LeaguePage() {
     }
   };
 
-  const handlePlayMatch = async () => {
-    if (!leagueStatus?.match) return;
 
-    // Navigate to match page with the match ID
-    router.push(`/match/${leagueStatus.match.id}`);
-  };
 
 
 
@@ -274,7 +269,6 @@ export default function LeaguePage() {
             {/* League Management */}
             <LeagueMatchSection
               leagueStatus={leagueStatus}
-              onPlayMatch={handlePlayMatch}
               onQuickSim={handleQuickSim}
               onScheduleLeague={scheduleMatches}
               quickSimLoading={quickSimLoading}

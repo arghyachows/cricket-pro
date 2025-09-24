@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [recentMatches, setRecentMatches] = useState([]);
   const [leagueTable, setLeagueTable] = useState([]);
   const [lineups, setLineups] = useState([]);
   const [marketplace, setMarketplace] = useState([]);
@@ -67,10 +68,21 @@ export default function DashboardPage() {
       const playersData = await playersResponse.json();
       setPlayers(playersData);
 
-      // Fetch matches
+      // Fetch user's matches
       const matchesResponse = await fetch(`${baseUrl}/api/matches?userId=${savedUser.id}`);
       const matchesData = await matchesResponse.json();
       setMatches(matchesData);
+
+      // Fetch recent league matches for activity feed
+      const recentMatchesResponse = await fetch(`${baseUrl}/api/matches`);
+      const recentMatchesData = await recentMatchesResponse.json();
+      // Filter to get recent completed matches (not just user's matches)
+      const recentCompletedMatches = recentMatchesData
+        .filter(m => m.status === 'completed')
+        .sort((a, b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at))
+        .slice(0, 10); // Get last 10 completed matches
+
+      setRecentMatches(recentCompletedMatches);
 
       // Fetch league table
       const leagueResponse = await fetch(`${baseUrl}/api/leagues`);
@@ -101,57 +113,7 @@ export default function DashboardPage() {
 
 
 
-  const createFriendlyMatch = async () => {
-    if (!user || players.length < 11) {
-      toast({
-        title: "Error",
-        description: "You need at least 11 players to create a match",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    try {
-      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-        ? 'http://localhost:3000'
-        : '';
-      const response = await fetch(`${baseUrl}/api/matches`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          home_team_id: user.id,
-          away_team_id: 'demo-opponent',
-          scheduled_time: new Date().toISOString(),
-          pitch_type: 'Normal',
-          weather: 'Sunny'
-        }),
-      });
-
-      const match = await response.json();
-
-      if (response.ok) {
-        setMatches([...matches, match]);
-        toast({
-          title: "Match Created!",
-          description: "Your T20 match has been scheduled",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: match.error,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create match",
-        variant: "destructive",
-      });
-    }
-  };
 
 
 
@@ -330,14 +292,6 @@ export default function DashboardPage() {
                       <span className="text-xs">Transfer Market</span>
                     </Button>
                     <Button
-                      onClick={createFriendlyMatch}
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
-                      variant="outline"
-                    >
-                      <Play className="w-6 h-6" />
-                      <span className="text-xs">Quick Match</span>
-                    </Button>
-                    <Button
                       onClick={handleQuickSim}
                       disabled={quickSimLoading}
                       className="h-20 flex flex-col items-center justify-center space-y-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 disabled:opacity-50"
@@ -348,6 +302,14 @@ export default function DashboardPage() {
                         <Zap className="w-6 h-6" />
                       )}
                       <span className="text-xs">{quickSimLoading ? 'Simulating...' : 'Quick Sim'}</span>
+                    </Button>
+                    <Button
+                      onClick={() => router.push('/journey')}
+                      className="h-20 flex flex-col items-center justify-center space-y-2"
+                      variant="outline"
+                    >
+                      <Award className="w-6 h-6" />
+                      <span className="text-xs">My Journey</span>
                     </Button>
                   </div>
                   <div className="mt-4 pt-4 border-t">
@@ -428,31 +390,54 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {completedMatches.slice(-3).reverse().map((match, index) => (
-                      <div key={match.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${match.result === user.id ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                            {match.result === user.id ? 'W' : 'L'}
+                    {recentMatches.slice(0, 5).map((match, index) => {
+                      const isUserHome = match.home_team_id === user.id;
+                      const isUserAway = match.away_team_id === user.id;
+                      const isUserInvolved = isUserHome || isUserAway;
+                      const userWon = match.result === user.id;
+
+                      return (
+                        <div key={match.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                              isUserInvolved
+                                ? (userWon ? 'bg-green-500 text-white' : 'bg-red-500 text-white')
+                                : 'bg-blue-500 text-white'
+                            }`}>
+                              {isUserInvolved ? (userWon ? 'W' : 'L') : 'M'}
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">
+                                {match.home_team_name || 'Home'} vs {match.away_team_name || 'Away'}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {match.home_score || 0} - {match.away_score || 0}
+                                {match.round && ` • Round ${match.round}`}
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-medium text-sm">T20 Match</div>
+                          <div className="flex flex-col items-end space-y-1">
+                            {isUserInvolved ? (
+                              <Badge variant={userWon ? 'default' : 'destructive'} className="text-xs">
+                                {userWon ? 'Won' : 'Lost'}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                League Match
+                              </Badge>
+                            )}
                             <div className="text-xs text-muted-foreground">
-                              {match.home_score} - {match.away_score}
+                              {match.completed_at ? new Date(match.completed_at).toLocaleDateString() : 'Recent'}
                             </div>
                           </div>
                         </div>
-                        <Badge variant={match.result === user.id ? 'default' : 'destructive'} className="text-xs">
-                          {match.result === user.id ? 'Won' : 'Lost'}
-                        </Badge>
-                      </div>
-                    ))}
-                    {completedMatches.length === 0 && (
+                      );
+                    })}
+                    {recentMatches.length === 0 && (
                       <div className="text-center py-6">
                         <Trophy className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">No matches played yet</p>
-                        <Button onClick={createFriendlyMatch} size="sm" className="mt-2">
-                          Play Your First Match
-                        </Button>
+                        <p className="text-sm text-muted-foreground">No recent activity</p>
+                        <p className="text-xs text-muted-foreground mt-2">Matches will appear here once the league starts</p>
                       </div>
                     )}
                   </div>
@@ -463,59 +448,7 @@ export default function DashboardPage() {
 
 
 
-          {/* Live Matches Section - Only show if there are active matches */}
-          {inProgressMatches.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                  <span>Live Matches</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {inProgressMatches.map((match) => (
-                    <div key={match.id} className="p-4 border rounded-lg bg-gradient-to-r from-green-50 to-blue-50">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className="bg-red-500 text-white">
-                            {match.status === 'paused' ? 'PAUSED' : 'LIVE'}
-                          </Badge>
-                          <span className="text-sm font-medium">T20 Match</span>
-                        </div>
-                        <Badge variant="secondary">
-                          {match.weather} • {match.pitch_type}
-                        </Badge>
-                      </div>
 
-                      <div className="space-y-2 mb-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">{user.team_name}</span>
-                          <span className="font-bold">{match.current_runs || 0}/{match.current_wickets || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-xs text-muted-foreground">
-                          <span>Overs: {match.current_over || 0}.{match.current_ball || 0}</span>
-                          {match.current_runs && match.current_over && (
-                            <span>RR: {((match.current_runs / ((match.current_over * 6 + match.current_ball) / 6)) || 0).toFixed(2)}</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          onClick={() => router.push(`/match/${match.id}`)}
-                          className="flex-1"
-                        >
-                          {match.home_team_id === user.id || match.away_team_id === user.id ? 'Resume Your Match' : 'View Match'}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </main>
 
