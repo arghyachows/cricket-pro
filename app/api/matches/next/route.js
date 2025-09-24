@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { initializeDatabase } from '@/lib/mongodb/index';
+import { getDatabase } from '@/lib/mongodb/index';
 
 export async function GET(request) {
   try {
-    await initializeDatabase();
-
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const leagueId = searchParams.get('leagueId') || 'default';
@@ -16,10 +14,7 @@ export async function GET(request) {
       );
     }
 
-    const { MongoClient } = require('mongodb');
-    const client = new MongoClient(process.env.MONGO_URL);
-    await client.connect();
-    const db = client.db(process.env.DB_NAME || 'cricket-pro');
+    const db = await getDatabase();
 
     // Get current active season
     const activeSeason = await db.collection('league_seasons').findOne({
@@ -28,7 +23,6 @@ export async function GET(request) {
     });
 
     if (!activeSeason) {
-      await client.close();
       return NextResponse.json({
         status: 'no_active_season',
         message: 'No active season found'
@@ -114,8 +108,6 @@ export async function GET(request) {
       season: activeSeason.season,
       status: 'completed'
     });
-
-    await client.close();
 
     return NextResponse.json({
       status: 'league_complete',

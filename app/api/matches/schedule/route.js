@@ -1,17 +1,11 @@
 import { NextResponse } from 'next/server';
-import { initializeDatabase } from '@/lib/mongodb/index';
+import { getDatabase } from '@/lib/mongodb/index';
 
 export async function POST(request) {
   try {
-    await initializeDatabase();
-
     const { leagueId = 'default' } = await request.json();
 
-    // Get all users/teams
-    const { MongoClient } = require('mongodb');
-    const client = new MongoClient(process.env.MONGO_URL);
-    await client.connect();
-    const db = client.db(process.env.DB_NAME || 'cricket-pro');
+    const db = await getDatabase();
 
     const teams = await db.collection('users').find({}).toArray();
 
@@ -200,8 +194,6 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
-    await client.close();
 
     return NextResponse.json({
       message: `Scheduled ${matchesToCreate.length} matches for ${teams.length} teams`,
