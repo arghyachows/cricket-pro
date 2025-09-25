@@ -142,6 +142,10 @@ CREATE TABLE lineups (
   name TEXT DEFAULT 'Main Lineup',
   players TEXT[] DEFAULT '{}',
   formation TEXT DEFAULT '4-4-2',
+  captain_id TEXT,
+  wicketkeeper_id TEXT,
+  first_bowler_id TEXT,
+  second_bowler_id TEXT,
   is_main BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

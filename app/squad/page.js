@@ -34,7 +34,8 @@ import {
   Edit,
   Grid3X3,
   List,
-  Filter
+  Filter,
+  Trash2
 } from 'lucide-react';
 
 export default function SquadPage() {
@@ -66,6 +67,8 @@ export default function SquadPage() {
     second_bowler_id: '',
     is_main: true
   });
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [lineupToDelete, setLineupToDelete] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -139,7 +142,11 @@ export default function SquadPage() {
       const lineup = await response.json();
 
       if (response.ok) {
-        setLineups([...lineups, lineup]);
+        // Refresh the entire lineups list to get updated main lineup status
+        const refreshedLineupsResponse = await fetch(`${baseUrl}/api/lineups?userId=${user.id}`);
+        const refreshedLineups = await refreshedLineupsResponse.json();
+        setLineups(refreshedLineups);
+
         setIsCreatingLineup(false);
         setNewLineup({
           name: 'Main Lineup',
@@ -190,13 +197,20 @@ export default function SquadPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newLineup),
+        body: JSON.stringify({
+          ...newLineup,
+          user_id: user.id
+        }),
       });
 
       const lineup = await response.json();
 
       if (response.ok) {
-        setLineups(lineups.map(l => l.id === editingLineup.id ? lineup : l));
+        // Refresh the entire lineups list to get updated main lineup status
+        const refreshedLineupsResponse = await fetch(`${baseUrl}/api/lineups?userId=${user.id}`);
+        const refreshedLineups = await refreshedLineupsResponse.json();
+        setLineups(refreshedLineups);
+
         setIsEditingLineup(false);
         setEditingLineup(null);
         setNewLineup({
@@ -335,6 +349,43 @@ export default function SquadPage() {
     router.push('/');
   };
 
+  const deleteLineup = async () => {
+    if (!lineupToDelete) return;
+
+    try {
+      const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+        ? 'http://localhost:3000'
+        : '';
+      const response = await fetch(`${baseUrl}/api/lineups/${lineupToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setLineups(lineups.filter(l => l.id !== lineupToDelete.id));
+        setShowDeleteDialog(false);
+        setLineupToDelete(null);
+        toast({
+          title: "Success!",
+          description: "Lineup deleted successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete lineup",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Filter players based on current filters
   const filteredPlayers = players.filter(player => {
     if (filters.battingStyle !== 'all' && player.batting_style !== filters.battingStyle) return false;
@@ -405,7 +456,7 @@ export default function SquadPage() {
         <Tabs defaultValue="squad" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="squad">Squad ({players.length} players)</TabsTrigger>
-            <TabsTrigger value="lineup">Main Lineup</TabsTrigger>
+            <TabsTrigger value="lineup">Lineups</TabsTrigger>
           </TabsList>
 
           <TabsContent value="squad" className="space-y-6">
@@ -503,99 +554,86 @@ export default function SquadPage() {
 
             {/* Squad Display */}
             {viewMode === 'cards' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {filteredPlayers.map((player) => (
-                  <Card key={player.id} className="hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{player.name}</CardTitle>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline">{player.age} years</Badge>
+                  <Card key={player.id} className="hover:shadow-md transition-shadow p-3">
+                    <CardHeader className="pb-2 p-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <CardTitle className="text-base font-semibold">{player.name}</CardTitle>
+                        <div className="flex items-center space-x-1">
+                          <Badge variant="outline" className="text-xs px-1 py-0">{player.age}</Badge>
                           {player.is_for_sale && (
-                            <Badge variant="secondary">For Sale</Badge>
+                            <Badge variant="secondary" className="text-xs px-1 py-0">Sale</Badge>
                           )}
                         </div>
                       </div>
-                      <CardDescription className="flex items-center space-x-2">
-                        <span>{player.batting_style}</span>
-                        <span>•</span>
-                        <span>{player.bowler_type}</span>
+                      <CardDescription className="text-xs text-muted-foreground">
+                        {player.batting_style} • {player.bowler_type}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+                    <CardContent className="space-y-2 p-0">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="flex items-center space-x-1">
-                              <Target className="w-3 h-3" />
-                              <span>Batting</span>
+                            <span className="flex items-center">
+                              <Target className="w-3 h-3 mr-1" />
+                              <span>Bat</span>
                             </span>
                             <span className={`font-medium ${getSkillColor(player.batting)}`}>
                               {getSkillName(player.batting)}
                             </span>
                           </div>
-                          <Progress value={player.batting} className="h-2" />
+                          <Progress value={player.batting} className="h-1" />
                         </div>
 
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="flex items-center space-x-1">
-                              <Zap className="w-3 h-3" />
-                              <span>Bowling</span>
+                            <span className="flex items-center">
+                              <Zap className="w-3 h-3 mr-1" />
+                              <span>Bowl</span>
                             </span>
                             <span className={`font-medium ${getSkillColor(player.bowling)}`}>
                               {getSkillName(player.bowling)}
                             </span>
                           </div>
-                          <Progress value={player.bowling} className="h-2" />
+                          <Progress value={player.bowling} className="h-1" />
                         </div>
 
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="flex items-center space-x-1">
-                              <Shield className="w-3 h-3" />
-                              <span>Keeping</span>
-                            </span>
-                            <span className={`font-medium ${getSkillColor(player.keeping)}`}>
-                              {getSkillName(player.keeping)}
-                            </span>
-                          </div>
-                          <Progress value={player.keeping} className="h-2" />
-                        </div>
-
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="flex items-center space-x-1">
-                              <Crown className="w-3 h-3" />
-                              <span>Captaincy</span>
+                            <span className="flex items-center">
+                              <Crown className="w-3 h-3 mr-1" />
+                              <span>Capt</span>
                             </span>
                             <span className={`font-medium ${getSkillColor(player.captaincy)}`}>
                               {getSkillName(player.captaincy)}
                             </span>
                           </div>
-                          <Progress value={player.captaincy} className="h-2" />
+                          <Progress value={player.captaincy} className="h-1" />
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <div className="flex items-center space-x-2">
+                      <div className="flex items-center justify-between pt-2 border-t text-xs">
+                        <div className="flex items-center space-x-1">
                           <Badge variant={player.form === 'Excellent' ? 'default' :
-                                        player.form === 'Good' ? 'secondary' : 'outline'}>
+                                        player.form === 'Good' ? 'secondary' : 'outline'}
+                                 className="text-xs px-1 py-0">
                             {player.form}
                           </Badge>
-                          <Badge variant="outline">
-                            Rating: {player.rating}
+                          <Badge variant="outline" className="text-xs px-1 py-0">
+                            {player.rating}
                           </Badge>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className="flex items-center space-x-1">
-                            <Coins className="w-3 h-3" />
-                            <span>{player.market_value?.toLocaleString()}</span>
+                        <div className="flex items-center space-x-1">
+                          <Badge variant="outline" className="flex items-center text-xs px-1 py-0">
+                            <Coins className="w-2 h-2 mr-1" />
+                            <span>{(player.market_value / 1000).toFixed(0)}k</span>
                           </Badge>
                           {!player.is_for_sale && (
                             <Button
                               size="sm"
                               variant="outline"
+                              className="h-6 px-2 text-xs"
                               onClick={() => {
                                 setPlayerToSell(player);
                                 setShowSellDialog(true);
@@ -706,86 +744,110 @@ export default function SquadPage() {
           </TabsContent>
 
           <TabsContent value="lineup" className="space-y-6">
-            {/* Lineup Header */}
+            {/* Lineups Header */}
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Main Lineup</h2>
-              {!mainLineup && (
-                <Button onClick={() => setIsCreatingLineup(true)}>
-                  <PlusCircle className="w-4 h-4 mr-2" />
-                  Create Main Lineup
-                </Button>
-              )}
+              <h2 className="text-2xl font-bold">Lineups ({lineups.length})</h2>
+              <Button onClick={() => setIsCreatingLineup(true)}>
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Create Lineup
+              </Button>
             </div>
 
-            {mainLineup ? (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>{mainLineup.name}</CardTitle>
-                      <Badge variant="default">Main Lineup</Badge>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditingLineup(mainLineup);
-                        setNewLineup({
-                          name: mainLineup.name,
-                          players: [...mainLineup.players],
-                          captain_id: mainLineup.captain_id,
-                          wicketkeeper_id: mainLineup.wicketkeeper_id,
-                          first_bowler_id: mainLineup.first_bowler_id,
-                          second_bowler_id: mainLineup.second_bowler_id,
-                          is_main: mainLineup.is_main
-                        });
-                        setIsEditingLineup(true);
-                      }}
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <strong>Captain:</strong> {players.find(p => p.id === mainLineup.captain_id)?.name || 'Unknown'}
+            {/* All Lineups */}
+            {lineups.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {lineups.map((lineup) => (
+                  <Card key={lineup.id} className="hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <CardTitle className="text-base font-semibold">{lineup.name}</CardTitle>
+                          {lineup.is_main && (
+                            <Badge variant="default" className="text-xs">Main</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => {
+                              setEditingLineup(lineup);
+                              setNewLineup({
+                                name: lineup.name,
+                                players: [...lineup.players],
+                                captain_id: lineup.captain_id,
+                                wicketkeeper_id: lineup.wicketkeeper_id,
+                                first_bowler_id: lineup.first_bowler_id,
+                                second_bowler_id: lineup.second_bowler_id,
+                                is_main: lineup.is_main
+                              });
+                              setIsEditingLineup(true);
+                            }}
+                          >
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => {
+                              setLineupToDelete(lineup);
+                              setShowDeleteDialog(true);
+                            }}
+                            disabled={lineup.is_main}
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Del
+                          </Button>
+                        </div>
                       </div>
-                      <div>
-                        <strong>Wicketkeeper:</strong> {players.find(p => p.id === mainLineup.wicketkeeper_id)?.name || 'Unknown'}
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="text-xs text-muted-foreground">
+                        {lineup.players?.length || 0}/11 players
                       </div>
-                      <div>
-                        <strong>1st Bowler:</strong> {players.find(p => p.id === mainLineup.first_bowler_id)?.name || 'Unknown'}
+
+                      {/* All Players */}
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-muted-foreground">Team:</div>
+                        <div className="grid grid-cols-1 gap-1 text-xs">
+                          {lineup.players?.map((playerId, index) => {
+                            const player = players.find(p => p.id === playerId);
+                            if (!player) return null;
+
+                            const isCaptain = lineup.captain_id === playerId;
+                            const isWicketkeeper = lineup.wicketkeeper_id === playerId;
+                            const isFirstBowler = lineup.first_bowler_id === playerId;
+                            const isSecondBowler = lineup.second_bowler_id === playerId;
+
+                            return (
+                              <div key={playerId} className="flex items-center space-x-2 p-1 rounded border">
+                                <span className="text-muted-foreground w-6">#{index + 1}</span>
+                                <span className="font-medium flex-1">{player.name}</span>
+                                <div className="flex items-center space-x-1">
+                                  {isCaptain && <Badge variant="default" className="text-xs px-1 py-0">C</Badge>}
+                                  {isWicketkeeper && <Badge variant="secondary" className="text-xs px-1 py-0">K</Badge>}
+                                  {isFirstBowler && <Badge variant="outline" className="text-xs px-1 py-0">B1</Badge>}
+                                  {isSecondBowler && <Badge variant="outline" className="text-xs px-1 py-0">B2</Badge>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div>
-                        <strong>2nd Bowler:</strong> {players.find(p => p.id === mainLineup.second_bowler_id)?.name || 'Unknown'}
-                      </div>
-                    </div>
-                    <div>
-                      <strong>Players ({mainLineup.players?.length || 0}/11):</strong>
-                      <div className="mt-2 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                        {mainLineup.players?.map(playerId => {
-                          const player = players.find(p => p.id === playerId);
-                          return player ? (
-                            <Badge key={playerId} variant="outline" className="justify-start">
-                              {player.name}
-                            </Badge>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             ) : (
               <Card>
                 <CardContent className="text-center py-12">
                   <Edit className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground mb-4">No main lineup set</p>
+                  <p className="text-muted-foreground mb-4">No lineups created yet</p>
                   <Button onClick={() => setIsCreatingLineup(true)}>
-                    Create Main Lineup
+                    Create Your First Lineup
                   </Button>
                 </CardContent>
               </Card>
@@ -861,9 +923,8 @@ export default function SquadPage() {
                   id="is-main"
                   checked={newLineup.is_main}
                   onCheckedChange={(checked) => setNewLineup({...newLineup, is_main: checked})}
-                  disabled
                 />
-                <Label htmlFor="is-main">Set as main lineup (required)</Label>
+                <Label htmlFor="is-main">Set as main lineup</Label>
               </div>
             </div>
 
@@ -889,7 +950,9 @@ export default function SquadPage() {
                     <SelectValue placeholder="Select keeper" />
                   </SelectTrigger>
                   <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                    {players.filter(p => newLineup.players.includes(p.id) &&
+                      p.id !== newLineup.first_bowler_id &&
+                      p.id !== newLineup.second_bowler_id).map(player => (
                       <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -903,7 +966,9 @@ export default function SquadPage() {
                     <SelectValue placeholder="Select 1st bowler" />
                   </SelectTrigger>
                   <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                    {players.filter(p => newLineup.players.includes(p.id) &&
+                      p.id !== newLineup.wicketkeeper_id &&
+                      p.id !== newLineup.second_bowler_id).map(player => (
                       <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -917,7 +982,9 @@ export default function SquadPage() {
                     <SelectValue placeholder="Select 2nd bowler" />
                   </SelectTrigger>
                   <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                    {players.filter(p => newLineup.players.includes(p.id) &&
+                      p.id !== newLineup.wicketkeeper_id &&
+                      p.id !== newLineup.first_bowler_id).map(player => (
                       <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -956,7 +1023,7 @@ export default function SquadPage() {
               disabled={newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id ||
                         !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name}
             >
-              Create Main Lineup
+              Add Lineup
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -988,9 +1055,8 @@ export default function SquadPage() {
                   id="edit-is-main"
                   checked={newLineup.is_main}
                   onCheckedChange={(checked) => setNewLineup({...newLineup, is_main: checked})}
-                  disabled
                 />
-                <Label htmlFor="edit-is-main">Set as main lineup (required)</Label>
+                <Label htmlFor="edit-is-main">Set as main lineup</Label>
               </div>
             </div>
 
@@ -1016,7 +1082,9 @@ export default function SquadPage() {
                     <SelectValue placeholder="Select keeper" />
                   </SelectTrigger>
                   <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                    {players.filter(p => newLineup.players.includes(p.id) &&
+                      p.id !== newLineup.first_bowler_id &&
+                      p.id !== newLineup.second_bowler_id).map(player => (
                       <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1030,7 +1098,9 @@ export default function SquadPage() {
                     <SelectValue placeholder="Select 1st bowler" />
                   </SelectTrigger>
                   <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                    {players.filter(p => newLineup.players.includes(p.id) &&
+                      p.id !== newLineup.wicketkeeper_id &&
+                      p.id !== newLineup.second_bowler_id).map(player => (
                       <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1044,7 +1114,9 @@ export default function SquadPage() {
                     <SelectValue placeholder="Select 2nd bowler" />
                   </SelectTrigger>
                   <SelectContent>
-                    {players.filter(p => newLineup.players.includes(p.id)).map(player => (
+                    {players.filter(p => newLineup.players.includes(p.id) &&
+                      p.id !== newLineup.wicketkeeper_id &&
+                      p.id !== newLineup.first_bowler_id).map(player => (
                       <SelectItem key={player.id} value={player.id}>{player.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1083,7 +1155,37 @@ export default function SquadPage() {
               disabled={newLineup.players.length !== 11 || !newLineup.captain_id || !newLineup.wicketkeeper_id ||
                         !newLineup.first_bowler_id || !newLineup.second_bowler_id || !newLineup.name}
             >
-              Update Main Lineup
+              Update Lineup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Lineup Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Lineup</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{lineupToDelete?.name}"?
+              {lineupToDelete?.is_main && (
+                <span className="block mt-2 text-red-600 font-medium">
+                  Warning: This is your main lineup. You cannot delete the main lineup.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={deleteLineup}
+              disabled={lineupToDelete?.is_main}
+            >
+              Delete Lineup
             </Button>
           </DialogFooter>
         </DialogContent>
