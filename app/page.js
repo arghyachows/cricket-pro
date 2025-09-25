@@ -181,11 +181,17 @@ export default function HomePage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="England">England</SelectItem>
-                        <SelectItem value="Australia">Australia</SelectItem>
-                        <SelectItem value="India">India</SelectItem>
-                        <SelectItem value="Pakistan">Pakistan</SelectItem>
-                        <SelectItem value="South Africa">South Africa</SelectItem>
+                        <SelectItem value="England">🏴󠁧󠁢󠁥󠁮󠁧󠁿 England</SelectItem>
+                        <SelectItem value="Australia">🇦🇺 Australia</SelectItem>
+                        <SelectItem value="India">🇮🇳 India</SelectItem>
+                        <SelectItem value="Pakistan">🇵🇰 Pakistan</SelectItem>
+                        <SelectItem value="South Africa">🇿🇦 South Africa</SelectItem>
+                        <SelectItem value="New Zealand">🇳🇿 New Zealand</SelectItem>
+                        <SelectItem value="West Indies">🇯🇲 West Indies</SelectItem>
+                        <SelectItem value="Sri Lanka">🇱🇰 Sri Lanka</SelectItem>
+                        <SelectItem value="Bangladesh">🇧🇩 Bangladesh</SelectItem>
+                        <SelectItem value="Afghanistan">🇦🇫 Afghanistan</SelectItem>
+                        <SelectItem value="Zimbabwe">🇿🇼 Zimbabwe</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

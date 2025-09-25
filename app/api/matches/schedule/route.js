@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb/index';
+import { supabaseAdmin } from '@/lib/supabase/client';
 
 export async function POST(request) {
   try {
     const { leagueId = 'default' } = await request.json();
 
-    const db = await getDatabase();
+    const { data: teams, error: teamsError } = await supabaseAdmin
+      .from('users')
+      .select('*');
 
-    const teams = await db.collection('users').find({}).toArray();
+    if (teamsError) throw teamsError;
 
-    if (teams.length < 2) {
+    if (!teams || teams.length < 2) {
       return NextResponse.json(
         { error: 'Need at least 2 teams to schedule matches' },
         { status: 400 }
@@ -17,25 +19,34 @@ export async function POST(request) {
     }
 
     // Check if there's an active season and archive it if all matches are complete
-    const activeSeason = await db.collection('league_seasons').findOne({
-      league_id: leagueId,
-      status: 'active'
-    });
+    const { data: activeSeason, error: activeSeasonError } = await supabaseAdmin
+      .from('league_seasons')
+      .select('*')
+      .eq('league_id', leagueId)
+      .eq('status', 'active')
+      .single();
+
+    if (activeSeasonError && activeSeasonError.code !== 'PGRST116') throw activeSeasonError;
 
     if (activeSeason) {
       // Check if all matches in the active season are completed
-      const activeMatches = await db.collection('matches').find({
-        league: leagueId,
-        season: activeSeason.season,
-        status: { $in: ['scheduled', 'in-progress', 'paused'] }
-      }).toArray();
+      const { data: activeMatches, error: activeMatchesError } = await supabaseAdmin
+        .from('matches')
+        .select('*')
+        .eq('league', leagueId)
+        .eq('season', activeSeason.season)
+        .in('status', ['scheduled', 'in-progress', 'paused']);
 
-      if (activeMatches.length === 0) {
+      if (activeMatchesError) throw activeMatchesError;
+
+      if (!activeMatches || activeMatches.length === 0) {
         // All matches completed, archive the season
-        await db.collection('league_seasons').updateOne(
-          { _id: activeSeason._id },
-          { $set: { status: 'completed', completed_at: new Date() } }
-        );
+        const { error: updateError } = await supabaseAdmin
+          .from('league_seasons')
+          .update({ status: 'completed', completed_at: new Date().toISOString() })
+          .eq('id', activeSeason.id);
+
+        if (updateError) throw updateError;
       } else {
         return NextResponse.json(
           { error: 'Cannot start new season while current season has pending matches' },
@@ -45,11 +56,16 @@ export async function POST(request) {
     }
 
     // Get the next season number (incremental)
-    const lastSeason = await db.collection('league_seasons').find({
-      league_id: leagueId
-    }).sort({ season: -1 }).limit(1).toArray();
+    const { data: lastSeason, error: lastSeasonError } = await supabaseAdmin
+      .from('league_seasons')
+      .select('season')
+      .eq('league_id', leagueId)
+      .order('season', { ascending: false })
+      .limit(1);
 
-    const nextSeasonNumber = lastSeason.length > 0 ? parseInt(lastSeason[0].season) + 1 : 1;
+    if (lastSeasonError) throw lastSeasonError;
+
+    const nextSeasonNumber = lastSeason && lastSeason.length > 0 ? parseInt(lastSeason[0].season) + 1 : 1;
     const currentSeason = nextSeasonNumber.toString();
 
     // Create new season
@@ -58,22 +74,29 @@ export async function POST(request) {
       season: currentSeason,
       status: 'active',
       teams: teams.map(t => t.id),
-      created_at: new Date(),
-      started_at: new Date()
+      created_at: new Date().toISOString(),
+      started_at: new Date().toISOString()
     };
 
-    await db.collection('league_seasons').insertOne(newSeason);
+    const { error: insertSeasonError } = await supabaseAdmin
+      .from('league_seasons')
+      .insert(newSeason);
+
+    if (insertSeasonError) throw insertSeasonError;
 
     // Check if there are any scheduled matches for this season
-    const existingScheduledMatches = await db.collection('matches').find({
-      league: leagueId,
-      season: currentSeason,
-      status: 'scheduled'
-    }).toArray();
+    const { data: existingScheduledMatches, error: existingMatchesError } = await supabaseAdmin
+      .from('matches')
+      .select('*')
+      .eq('league', leagueId)
+      .eq('season', currentSeason)
+      .eq('status', 'scheduled');
+
+    if (existingMatchesError) throw existingMatchesError;
 
     let matchesToCreate = [];
 
-    if (existingScheduledMatches.length === 0) {
+    if (!existingScheduledMatches || existingScheduledMatches.length === 0) {
       // No scheduled matches, create ALL rounds for the full season
       const fixtures = generateRoundRobinFixtures(teams);
 
@@ -124,14 +147,18 @@ export async function POST(request) {
     } else {
       // Check if current round is complete, if so, schedule next round
       const currentRound = Math.max(...existingScheduledMatches.map(m => m.round));
-      const currentRoundMatches = await db.collection('matches').find({
-        league: leagueId,
-        season: currentSeason,
-        round: currentRound
-      }).toArray();
 
-      const completedMatches = currentRoundMatches.filter(m => m.status === 'completed').length;
-      const totalCurrentRoundMatches = currentRoundMatches.length;
+      const { data: currentRoundMatches, error: currentRoundError } = await supabaseAdmin
+        .from('matches')
+        .select('*')
+        .eq('league', leagueId)
+        .eq('season', currentSeason)
+        .eq('round', currentRound);
+
+      if (currentRoundError) throw currentRoundError;
+
+      const completedMatches = currentRoundMatches ? currentRoundMatches.filter(m => m.status === 'completed').length : 0;
+      const totalCurrentRoundMatches = currentRoundMatches ? currentRoundMatches.length : 0;
 
       if (completedMatches === totalCurrentRoundMatches) {
         // Current round is complete, schedule next round
@@ -151,7 +178,7 @@ export async function POST(request) {
               league: leagueId,
               season: currentSeason,
               match_type: 'T20',
-              scheduled_time: new Date(Date.now() + (matchNumber * 24 * 60 * 60 * 1000)),
+              scheduled_time: new Date(Date.now() + (matchNumber * 24 * 60 * 60 * 1000)).toISOString(),
               pitch_type: 'Normal',
               weather: 'Sunny',
               status: 'scheduled',
@@ -173,7 +200,7 @@ export async function POST(request) {
               current_wickets: 0,
               live_commentary: [],
               match_data: null,
-              created_at: new Date(),
+              created_at: new Date().toISOString(),
               round: fixture.round,
               match_number: matchNumber
             };
@@ -187,7 +214,11 @@ export async function POST(request) {
 
     if (matchesToCreate.length > 0) {
       // Insert new matches
-      await db.collection('matches').insertMany(matchesToCreate);
+      const { error: insertMatchesError } = await supabaseAdmin
+        .from('matches')
+        .insert(matchesToCreate);
+
+      if (insertMatchesError) throw insertMatchesError;
     } else {
       return NextResponse.json(
         { error: 'No new matches to schedule at this time' },

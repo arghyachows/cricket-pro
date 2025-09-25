@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb/index';
+import { supabaseAdmin } from '@/lib/supabase/client';
 
 export async function GET(request) {
   try {
@@ -14,13 +14,15 @@ export async function GET(request) {
       );
     }
 
-    const db = await getDatabase();
-
     // Get current active season
-    const activeSeason = await db.collection('league_seasons').findOne({
-      league_id: leagueId,
-      status: 'active'
-    });
+    const { data: activeSeason, error: activeSeasonError } = await supabaseAdmin
+      .from('league_seasons')
+      .select('*')
+      .eq('league_id', leagueId)
+      .eq('status', 'active')
+      .single();
+
+    if (activeSeasonError && activeSeasonError.code !== 'PGRST116') throw activeSeasonError;
 
     if (!activeSeason) {
       return NextResponse.json({
@@ -30,18 +32,29 @@ export async function GET(request) {
     }
 
     // Get current match (in progress or live) for the active season
-    const currentMatch = await db.collection('matches').findOne({
-      league: leagueId,
-      season: activeSeason.season,
-      status: { $in: ['in-progress', 'live'] }
-    });
+    const { data: currentMatch, error: currentMatchError } = await supabaseAdmin
+      .from('matches')
+      .select('*')
+      .eq('league', leagueId)
+      .eq('season', activeSeason.season)
+      .in('status', ['in-progress', 'live'])
+      .single();
 
-    if (currentMatch) {
+    if (currentMatch && !currentMatchError) {
       // There's a match currently in progress
       const isUserInvolved = currentMatch.home_team_id === userId || currentMatch.away_team_id === userId;
 
-      const homeTeam = await db.collection('users').findOne({ id: currentMatch.home_team_id });
-      const awayTeam = await db.collection('users').findOne({ id: currentMatch.away_team_id });
+      const { data: homeTeam } = await supabaseAdmin
+        .from('users')
+        .select('team_name')
+        .eq('id', currentMatch.home_team_id)
+        .single();
+
+      const { data: awayTeam } = await supabaseAdmin
+        .from('users')
+        .select('team_name')
+        .eq('id', currentMatch.away_team_id)
+        .single();
 
       return NextResponse.json({
         status: 'match_in_progress',
@@ -57,30 +70,43 @@ export async function GET(request) {
     }
 
     // No match in progress, get next scheduled match for the active season (by match number for sequential play)
-    const nextMatch = await db.collection('matches').findOne(
-      {
-        league: leagueId,
-        season: activeSeason.season,
-        status: 'scheduled'
-      },
-      { sort: { match_number: 1 } }
-    );
+    const { data: nextMatch, error: nextMatchError } = await supabaseAdmin
+      .from('matches')
+      .select('*')
+      .eq('league', leagueId)
+      .eq('season', activeSeason.season)
+      .eq('status', 'scheduled')
+      .order('match_number', { ascending: true })
+      .limit(1)
+      .single();
 
-    if (nextMatch) {
+    if (nextMatch && !nextMatchError) {
       const isUserInvolved = nextMatch.home_team_id === userId || nextMatch.away_team_id === userId;
 
-      const homeTeam = await db.collection('users').findOne({ id: nextMatch.home_team_id });
-      const awayTeam = await db.collection('users').findOne({ id: nextMatch.away_team_id });
+      const { data: homeTeam } = await supabaseAdmin
+        .from('users')
+        .select('team_name')
+        .eq('id', nextMatch.home_team_id)
+        .single();
+
+      const { data: awayTeam } = await supabaseAdmin
+        .from('users')
+        .select('team_name')
+        .eq('id', nextMatch.away_team_id)
+        .single();
 
       // Check if previous matches are completed in the current season
-      const previousMatches = await db.collection('matches').countDocuments({
-        league: leagueId,
-        season: activeSeason.season,
-        match_number: { $lt: nextMatch.match_number },
-        status: { $ne: 'completed' }
-      });
+      const { count: previousMatches, error: countError } = await supabaseAdmin
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('league', leagueId)
+        .eq('season', activeSeason.season)
+        .lt('match_number', nextMatch.match_number)
+        .neq('status', 'completed');
 
-      const canProceed = previousMatches === 0;
+      if (countError) throw countError;
+
+      const canProceed = (previousMatches || 0) === 0;
 
       return NextResponse.json({
         status: 'next_match_available',
@@ -93,21 +119,27 @@ export async function GET(request) {
         canPlay: isUserInvolved && canProceed,
         canSimulate: !isUserInvolved && canProceed,
         canProceed,
-        previousMatchesPending: previousMatches
+        previousMatchesPending: previousMatches || 0
       });
     }
 
     // No more matches in the current season
-    const totalMatches = await db.collection('matches').countDocuments({
-      league: leagueId,
-      season: activeSeason.season
-    });
+    const { count: totalMatches, error: totalError } = await supabaseAdmin
+      .from('matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('league', leagueId)
+      .eq('season', activeSeason.season);
 
-    const completedMatches = await db.collection('matches').countDocuments({
-      league: leagueId,
-      season: activeSeason.season,
-      status: 'completed'
-    });
+    if (totalError) throw totalError;
+
+    const { count: completedMatches, error: completedError } = await supabaseAdmin
+      .from('matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('league', leagueId)
+      .eq('season', activeSeason.season)
+      .eq('status', 'completed');
+
+    if (completedError) throw completedError;
 
     return NextResponse.json({
       status: 'league_complete',

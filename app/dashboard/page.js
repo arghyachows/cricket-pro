@@ -67,40 +67,95 @@ export default function DashboardPage() {
         : '';
 
       // Fetch players
-      const playersResponse = await fetch(`${baseUrl}/api/players?userId=${savedUser.id}`);
-      const playersData = await playersResponse.json();
-      setPlayers(playersData);
+      try {
+        const playersResponse = await fetch(`${baseUrl}/api/players?userId=${savedUser.id}`);
+        if (playersResponse.ok) {
+          const playersData = await playersResponse.json();
+          setPlayers(Array.isArray(playersData) ? playersData : []);
+        } else {
+          setPlayers([]);
+        }
+      } catch (error) {
+        console.error('Error fetching players:', error);
+        setPlayers([]);
+      }
 
       // Fetch user's matches
-      const matchesResponse = await fetch(`${baseUrl}/api/matches?userId=${savedUser.id}`);
-      const matchesData = await matchesResponse.json();
-      setMatches(matchesData);
+      try {
+        const matchesResponse = await fetch(`${baseUrl}/api/matches?userId=${savedUser.id}`);
+        if (matchesResponse.ok) {
+          const matchesData = await matchesResponse.json();
+          setMatches(Array.isArray(matchesData) ? matchesData : []);
+        } else {
+          setMatches([]);
+        }
+      } catch (error) {
+        console.error('Error fetching matches:', error);
+        setMatches([]);
+      }
 
       // Fetch recent league matches for activity feed
-      const recentMatchesResponse = await fetch(`${baseUrl}/api/matches`);
-      const recentMatchesData = await recentMatchesResponse.json();
-      // Filter to get recent completed matches (not just user's matches)
-      const recentCompletedMatches = recentMatchesData
-        .filter(m => m.status === 'completed')
-        .sort((a, b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at))
-        .slice(0, 10); // Get last 10 completed matches
-
-      setRecentMatches(recentCompletedMatches);
+      try {
+        const recentMatchesResponse = await fetch(`${baseUrl}/api/matches`);
+        if (recentMatchesResponse.ok) {
+          const recentMatchesData = await recentMatchesResponse.json();
+          // Filter to get recent completed matches (not just user's matches)
+          const recentCompletedMatches = Array.isArray(recentMatchesData)
+            ? recentMatchesData
+                .filter(m => m && m.status === 'completed')
+                .sort((a, b) => new Date(b.completed_at || b.created_at) - new Date(a.completed_at || a.created_at))
+                .slice(0, 10) // Get last 10 completed matches
+            : [];
+          setRecentMatches(recentCompletedMatches);
+        } else {
+          setRecentMatches([]);
+        }
+      } catch (error) {
+        console.error('Error fetching recent matches:', error);
+        setRecentMatches([]);
+      }
 
       // Fetch league table
-      const leagueResponse = await fetch(`${baseUrl}/api/leagues`);
-      const leagueData = await leagueResponse.json();
-      setLeagueTable(leagueData);
+      try {
+        const leagueResponse = await fetch(`${baseUrl}/api/leagues`);
+        if (leagueResponse.ok) {
+          const leagueData = await leagueResponse.json();
+          setLeagueTable(leagueData || {});
+        } else {
+          setLeagueTable({});
+        }
+      } catch (error) {
+        console.error('Error fetching league table:', error);
+        setLeagueTable({});
+      }
 
       // Fetch lineups
-      const lineupsResponse = await fetch(`${baseUrl}/api/lineups?userId=${savedUser.id}`);
-      const lineupsData = await lineupsResponse.json();
-      setLineups(lineupsData);
+      try {
+        const lineupsResponse = await fetch(`${baseUrl}/api/lineups?userId=${savedUser.id}`);
+        if (lineupsResponse.ok) {
+          const lineupsData = await lineupsResponse.json();
+          setLineups(Array.isArray(lineupsData) ? lineupsData : []);
+        } else {
+          setLineups([]);
+        }
+      } catch (error) {
+        console.error('Error fetching lineups:', error);
+        setLineups([]);
+      }
 
       // Fetch marketplace
-      const marketResponse = await fetch(`${baseUrl}/api/marketplace`);
-      const marketData = await marketResponse.json();
-      setMarketplace(marketData);
+      try {
+        const marketResponse = await fetch(`${baseUrl}/api/marketplace`);
+        if (marketResponse.ok) {
+          const marketData = await marketResponse.json();
+          setMarketplace(Array.isArray(marketData) ? marketData : []);
+        } else {
+          setMarketplace([]);
+        }
+      } catch (error) {
+        console.error('Error fetching marketplace:', error);
+        setMarketplace([]);
+      }
 
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -298,7 +353,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {leagueTable.leagueTable && leagueTable.leagueTable.slice(0, 8).map((team, index) => (
+                    {leagueTable?.leagueTable && leagueTable.leagueTable.slice(0, 8).map((team, index) => (
                       <div key={team.id} className={`flex items-center justify-between p-3 rounded-lg ${index < 3 ? 'bg-gradient-to-r from-green-50 to-blue-50 border border-green-200' : 'hover:bg-gray-50'}`}>
                         <div className="flex items-center space-x-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? 'bg-yellow-500 text-white' : index === 1 ? 'bg-gray-400 text-white' : index === 2 ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
@@ -306,15 +361,22 @@ export default function DashboardPage() {
                           </div>
                           <div>
                             <div className="font-medium text-sm">{team.name}</div>
-                            <div className="text-xs text-muted-foreground">{team.played} played</div>
+                            <div className="text-xs text-muted-foreground">{team.played || 0} played</div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold text-lg">{team.points}</div>
+                          <div className="font-bold text-lg">{team.points || 0}</div>
                           <div className="text-xs text-muted-foreground">pts</div>
                         </div>
                       </div>
                     ))}
+                    {(!leagueTable?.leagueTable || leagueTable.leagueTable.length === 0) && (
+                      <div className="text-center py-6">
+                        <Trophy className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">No league data available</p>
+                        <p className="text-xs text-muted-foreground mt-2">League standings will appear here</p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -413,7 +475,7 @@ export default function DashboardPage() {
                           <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full"
-                              style={{ width: `${Math.min(100, (players.filter(p => p.rating >= 80).length / players.length) * 100)}%` }}
+                              style={{ width: `${players.length > 0 ? Math.min(100, (players.filter(p => p.rating >= 80).length / players.length) * 100) : 0}%` }}
                             ></div>
                           </div>
                           <span className="text-xs text-muted-foreground">
